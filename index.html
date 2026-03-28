@@ -723,6 +723,13 @@ function autocorrelate(buf, sampleRate) {
 
   if (bestTau < tauMin) return null;
 
+  // サブハーモニクスチェック: 検出したtauの2倍(1オクターブ低い周期)にも谷があれば
+  // そちらが真の基音の可能性が高い（倍音を基音と誤検出するオクターブエラー対策）
+  const tau2 = bestTau * 2;
+  if (tau2 <= tauMax && cmndf[tau2] < THRESH * 1.3) {
+    bestTau = tau2;
+  }
+
   // Step5: 放物線補間でlag精度向上
   let lag = bestTau;
   if (bestTau > 0 && bestTau < W - 1) {
