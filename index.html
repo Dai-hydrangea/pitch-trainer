@@ -1324,12 +1324,12 @@ function startChordOsc() {
   if (!audioCtx) return;
   stopEnsSingleNote();
 
-  // 古いオシレーターをフェードアウトして停止
+  // 古いオシレーターを停止
   const oldOscs = ensOscs.splice(0);
   if (ensMasterGain) {
-    try { ensMasterGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.1); } catch(e) {}
-    const og = ensMasterGain; ensMasterGain = null;
-    setTimeout(() => { oldOscs.forEach(({osc}) => { try{osc.stop();}catch(e){} }); }, 400);
+    ensMasterGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.1);
+    ensMasterGain = null;
+    setTimeout(() => oldOscs.forEach(({osc}) => { try{osc.stop();}catch(e){} }), 400);
   }
   ensMutedIdx = -1;
 
@@ -1337,34 +1337,35 @@ function startChordOsc() {
   const rootHz = midiToHz(ensRootMidi);
   const voiceGain = 0.9 / def.ratios.length;
 
-  try {
-    const masterGain = audioCtx.createGain();
-    masterGain.gain.value = 0.85; // 直接セット（setTargetAtTimeの初期値問題を回避）
-    const comp = audioCtx.createDynamicsCompressor();
-    comp.threshold.value = -18; comp.ratio.value = 12;
-    comp.attack.value = 0.003; comp.release.value = 0.1;
-    masterGain.connect(comp);
-    comp.connect(audioCtx.destination);
+  // startRefTone と同じパターン: gain=0→接続→start()→setTargetAtTime
+  const masterGain = audioCtx.createGain();
+  masterGain.gain.value = 0;
+  const comp = audioCtx.createDynamicsCompressor();
+  comp.threshold.value = -18; comp.ratio.value = 12;
+  comp.attack.value = 0.003; comp.release.value = 0.1;
+  masterGain.connect(comp);
+  comp.connect(audioCtx.destination);
 
-    ensOscs = def.ratios.map(ratio => {
-      const osc = audioCtx.createOscillator();
-      const g = audioCtx.createGain();
-      osc.type = 'sine';
-      osc.frequency.value = rootHz * ratio;
-      g.gain.value = voiceGain;
-      osc.connect(g); g.connect(masterGain);
-      osc.start();
-      return { osc, g };
-    });
+  ensOscs = def.ratios.map(ratio => {
+    const osc = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = rootHz * ratio;
+    g.gain.value = voiceGain;
+    osc.connect(g);
+    g.connect(masterGain);
+    osc.start();
+    return { osc, g };
+  });
 
-    ensMasterGain = masterGain;
-    ensActive = true;
-    const btn = document.getElementById('ens-play-btn');
-    btn.textContent = '■ 停止';
-    btn.classList.remove('btn-primary'); btn.classList.add('btn-danger');
-  } catch(e) {
-    console.error('startChordOsc:', e);
-  }
+  // 接続・start後にフェードイン（startRefToneと同じ手順）
+  masterGain.gain.setTargetAtTime(0.85, audioCtx.currentTime, 0.05);
+
+  ensMasterGain = masterGain;
+  ensActive = true;
+  const btn = document.getElementById('ens-play-btn');
+  btn.textContent = '■ 停止';
+  btn.classList.remove('btn-primary'); btn.classList.add('btn-danger');
 }
 
 function stopChordOsc(updateUI) {
