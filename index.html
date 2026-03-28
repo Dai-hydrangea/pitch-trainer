@@ -1,0 +1,1032 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>音程練習アプリ</title>
+<style>
+:root {
+  --bg: #0d1117;
+  --surface: #161b22;
+  --surface2: #21262d;
+  --border: #30363d;
+  --accent: #58a6ff;
+  --accent2: #3fb950;
+  --warn: #d29922;
+  --danger: #f85149;
+  --text: #e6edf3;
+  --text2: #8b949e;
+  --radius: 8px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px; min-height: 100vh; }
+h1 { font-size: 20px; font-weight: 600; }
+h2 { font-size: 16px; font-weight: 600; color: var(--accent); margin-bottom: 8px; }
+h3 { font-size: 13px; font-weight: 600; color: var(--text2); margin-bottom: 6px; }
+
+/* Header */
+#header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 12px 20px; display: flex; align-items: center; gap: 16px; }
+#header h1 { flex: 1; }
+#a4-ctrl { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text2); }
+#a4-ctrl input { width: 140px; accent-color: var(--accent); }
+#a4-val { color: var(--accent); font-weight: 600; min-width: 48px; }
+
+/* Tabs */
+#tabs { display: flex; background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 20px; }
+.tab { padding: 10px 18px; cursor: pointer; border-bottom: 2px solid transparent; color: var(--text2); font-size: 13px; font-weight: 500; transition: all .15s; }
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* Panels */
+.panel { display: none; padding: 20px; max-width: 1000px; margin: 0 auto; }
+.panel.active { display: block; }
+
+/* Buttons */
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: var(--radius); border: none; cursor: pointer; font-size: 13px; font-weight: 500; transition: opacity .15s; }
+.btn:hover { opacity: .85; }
+.btn-primary { background: var(--accent); color: #0d1117; }
+.btn-success { background: var(--accent2); color: #0d1117; }
+.btn-danger { background: var(--danger); color: #fff; }
+.btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text2); }
+.btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Cards */
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 16px; }
+
+/* ===== 計測タブ ===== */
+#measure-top { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+#now-display { text-align: center; }
+#now-note { font-size: 72px; font-weight: 700; color: var(--accent); line-height: 1; min-height: 80px; }
+#now-cents { font-size: 28px; font-weight: 600; margin-top: 4px; min-height: 36px; }
+#now-cents.sharp { color: #f85149; }
+#now-cents.flat { color: #79c0ff; }
+#now-cents.center { color: var(--accent2); }
+#tuner-canvas { width: 100%; height: 60px; border-radius: 4px; }
+
+#state-badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; margin-top: 8px; }
+#state-badge.silent { background: #30363d; color: var(--text2); }
+#state-badge.attack { background: #7d4e00; color: #ffa657; }
+#state-badge.stable { background: #1a4a1a; color: var(--accent2); }
+
+/* Note table */
+#note-table-wrap { overflow-y: auto; max-height: 320px; }
+table { width: 100%; border-collapse: collapse; }
+th { position: sticky; top: 0; background: var(--surface2); padding: 6px 10px; text-align: left; font-size: 12px; color: var(--text2); border-bottom: 1px solid var(--border); }
+td { padding: 5px 10px; border-bottom: 1px solid var(--border); font-size: 13px; }
+tr:last-child td { border-bottom: none; }
+.note-bar { height: 6px; background: var(--surface2); border-radius: 3px; position: relative; overflow: hidden; width: 80px; }
+.note-bar-fill { height: 100%; border-radius: 3px; position: absolute; top: 0; }
+
+/* Debug graph */
+#graph-wrap { margin-top: 0; }
+#graph-canvas { width: 100%; height: 150px; border-radius: 4px; background: #0d1117; }
+
+/* ===== 練習タブ ===== */
+#practice-main { max-width: 560px; margin: 0 auto; }
+#prac-note-big { font-size: 80px; font-weight: 700; color: var(--accent); line-height: 1; min-height: 88px; }
+#prac-note-sub { font-size: 14px; color: var(--text2); margin-top: 6px; min-height: 20px; }
+#prac-cents { font-size: 28px; font-weight: 600; margin-top: 8px; min-height: 36px; }
+#ref-status { font-size: 12px; color: var(--text2); margin-top: 8px; min-height: 18px; }
+#prac-tuner { width: 100%; height: 56px; border-radius: 4px; margin: 12px 0; }
+
+/* ===== レポートタブ ===== */
+#report-table th, #report-table td { text-align: right; }
+#report-table th:first-child, #report-table td:first-child { text-align: left; }
+#report-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+
+/* ===== 設定タブ ===== */
+.setting-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.setting-row:last-child { border-bottom: none; }
+.setting-label { flex: 1; }
+.setting-label strong { display: block; margin-bottom: 2px; }
+.setting-label span { color: var(--text2); font-size: 12px; }
+.setting-val { min-width: 48px; text-align: right; color: var(--accent); font-weight: 600; }
+.setting-row input[type=range] { width: 160px; accent-color: var(--accent); }
+
+/* Reset btn */
+#reset-data { margin-top: 16px; }
+
+/* Meter needle style */
+.meter-wrap { position: relative; height: 50px; }
+
+/* Utility */
+.flex { display: flex; gap: 10px; align-items: center; }
+.ml-auto { margin-left: auto; }
+.mb12 { margin-bottom: 12px; }
+.text2 { color: var(--text2); }
+.text-sm { font-size: 12px; }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <h1>🎵 音程練習アプリ</h1>
+  <div id="a4-ctrl">
+    A4 =
+    <input type="range" id="a4-slider" min="415" max="446" value="442" step="1">
+    <span id="a4-val">442 Hz</span>
+  </div>
+  <button class="btn btn-primary" id="start-btn">マイク開始</button>
+</div>
+
+<div id="tabs">
+  <div class="tab active" data-tab="measure">計測</div>
+  <div class="tab" data-tab="practice">練習</div>
+  <div class="tab" data-tab="report">レポート</div>
+  <div class="tab" data-tab="settings">設定</div>
+</div>
+
+<!-- 計測タブ -->
+<div class="panel active" id="panel-measure">
+  <div id="measure-top">
+    <div class="card" id="now-display">
+      <h2>現在の音</h2>
+      <div id="now-note">—</div>
+      <div id="now-cents">— ¢</div>
+      <canvas id="tuner-canvas"></canvas>
+      <div id="state-badge" class="silent">SILENT</div>
+    </div>
+    <div class="card">
+      <div class="flex mb12">
+        <h2 style="margin:0">音程別記録</h2>
+        <button class="btn btn-outline ml-auto" id="measure-reset-btn" style="font-size:12px">リセット</button>
+      </div>
+      <div id="note-table-wrap">
+        <table id="note-table">
+          <thead><tr>
+            <th>音名</th>
+            <th>回数</th>
+            <th>平均偏差</th>
+            <th>分布</th>
+          </tr></thead>
+          <tbody id="note-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="card" id="graph-wrap">
+    <div class="flex mb12">
+      <h2 style="margin:0">デバッググラフ — 時間 vs 音程</h2>
+      <button class="btn btn-outline ml-auto" id="graph-toggle" style="font-size:12px">非表示</button>
+    </div>
+    <canvas id="graph-canvas"></canvas>
+  </div>
+</div>
+
+<!-- 練習タブ -->
+<div class="panel" id="panel-practice">
+  <div id="practice-main">
+    <div class="card" style="text-align:center; padding:28px 24px;">
+      <div id="prac-note-big">—</div>
+      <div id="prac-note-sub">演奏すると音程を自動検出します</div>
+      <div id="prac-cents">— ¢</div>
+      <canvas id="prac-tuner"></canvas>
+      <div id="ref-status">—</div>
+      <div style="margin-top:20px; display:flex; gap:10px; justify-content:center;">
+        <button class="btn btn-success" id="prac-start-btn">練習開始</button>
+        <button class="btn btn-outline" id="prac-stop-btn">停止</button>
+      </div>
+    </div>
+    <div class="card">
+      <h3>使い方</h3>
+      <p class="text2 text-sm" style="line-height:1.8">
+        ① 「練習開始」を押す（マイクが未起動の場合は自動で開始）<br>
+        ② 楽器で任意の音を吹く<br>
+        ③ アタック後（150ms）に音程を自動検出し、基準音（サイン波）が鳴る<br>
+        ④ 基準音と自分の音を聴き比べて偏差を確認<br>
+        ⑤ 吹き終わると基準音が2秒間鳴り続け、余韻で確認できる
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- レポートタブ -->
+<div class="panel" id="panel-report">
+  <div class="card">
+    <div id="report-header">
+      <h2 style="margin:0">音程偏差レポート</h2>
+      <span class="text2 text-sm" id="report-summary"></span>
+      <button class="btn btn-outline ml-auto" id="export-btn">CSVエクスポート</button>
+    </div>
+    <table id="report-table">
+      <thead><tr>
+        <th>音名</th>
+        <th>回数</th>
+        <th>平均偏差 (¢)</th>
+        <th>傾向</th>
+        <th>偏差バー</th>
+      </tr></thead>
+      <tbody id="report-tbody"></tbody>
+    </table>
+  </div>
+  <div class="card">
+    <canvas id="report-canvas" style="width:100%; height:200px;"></canvas>
+  </div>
+</div>
+
+<!-- 設定タブ -->
+<div class="panel" id="panel-settings">
+  <div class="card">
+    <h2>検出設定</h2>
+    <div class="setting-row">
+      <div class="setting-label">
+        <strong>アタック除外時間</strong>
+        <span>音の立ち上がり（アタック）を無視する時間</span>
+      </div>
+      <input type="range" id="attack-slider" min="50" max="400" value="150" step="10">
+      <span class="setting-val" id="attack-val">150 ms</span>
+    </div>
+    <div class="setting-row">
+      <div class="setting-label">
+        <strong>無音判定閾値</strong>
+        <span>この音量以下を無音とみなす (RMS)</span>
+      </div>
+      <input type="range" id="silence-slider" min="1" max="30" value="8" step="1">
+      <span class="setting-val" id="silence-val">8</span>
+    </div>
+    <div class="setting-row">
+      <div class="setting-label">
+        <strong>無音終了ディレイ</strong>
+        <span>吹き終わり判定までの遅延</span>
+      </div>
+      <input type="range" id="silend-slider" min="50" max="300" value="120" step="10">
+      <span class="setting-val" id="silend-val">120 ms</span>
+    </div>
+  </div>
+  <div class="card">
+    <h2>データ</h2>
+    <div class="setting-row">
+      <div class="setting-label">
+        <strong>記録をリセット</strong>
+        <span>すべての音程記録を削除します</span>
+      </div>
+      <button class="btn btn-danger" id="reset-btn">リセット</button>
+    </div>
+  </div>
+  <div class="card">
+    <h2>iPhone / モバイルで使う</h2>
+    <p class="text2" style="line-height:1.8; font-size:13px">
+      iPhoneでマイクを使うには <strong>HTTPS接続</strong> が必要です。<br>
+      このHTMLファイルを <strong>GitHub Pages</strong> で公開すると、SafariでもWeb Audio APIが動作します。<br>
+      手順: GitHubリポジトリに push → Settings → Pages → main ブランチを選択
+    </p>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// 定数・設定
+// ============================================================
+const GERMAN = ['C','Cis','D','Es','E','F','Fis','G','As','A','B','H'];
+const MIDI_MIN = 52; // E3
+const MIDI_MAX = 84; // C6
+
+// A4=440のときの各MIDIノートのHz（実行時A4設定で再計算）
+let A4_HZ = 442;
+
+function midiToHz(midi) { return A4_HZ * Math.pow(2, (midi - 69) / 12); }
+function hzToMidi(hz) { return 69 + 12 * Math.log2(hz / A4_HZ); }
+function midiToCents(midiFloat, midiInt) { return (midiFloat - midiInt) * 100; }
+
+function noteLabel(midi) {
+  const oct = Math.floor(midi / 12) - 1;
+  const name = GERMAN[midi % 12];
+  return name + oct;
+}
+
+// 全ノートリスト
+const ALL_NOTES = [];
+for (let m = MIDI_MAX; m >= MIDI_MIN; m--) {
+  ALL_NOTES.push({ midi: m, label: noteLabel(m) });
+}
+
+// ============================================================
+// データストア
+// ============================================================
+// noteData[midiInt] = { count, sumCents, centsArr }
+const noteData = {};
+for (let m = MIDI_MIN; m <= MIDI_MAX; m++) {
+  noteData[m] = { count: 0, sumCents: 0, centsArr: [] };
+}
+
+// ============================================================
+// Audio
+// ============================================================
+let audioCtx = null;
+let analyser = null;
+let sourceNode = null;
+let timerId = null;
+let isStarted = false;
+
+// 練習用
+let oscNode = null;
+let gainNode = null;
+let pracMidi = null;       // 現在基準音として鳴らしているMIDI
+let pracActive = false;    // 練習モードON/OFF
+let refPlaying = false;    // 基準音が出力中か
+let pracAutoTimer = null;  // 無音後のlinger timer
+const REF_LINGER_MS = 2000; // 吹き終わり後に基準音を鳴らし続ける時間
+
+// ピッチ検出バッファ
+const FFT_SIZE = 4096;
+const DETECT_INTERVAL = 50; // ms
+
+// 状態機械
+let trackState = 'silent'; // 'silent' | 'attack' | 'stable'
+let attackStartTime = null;
+let lastSoundTime = null;
+let currentMidi = null;
+let currentCentsArr = [];
+let ATTACK_MS = 150;
+let SILENCE_THRESH = 8;
+let SILENCE_END_MS = 120;
+
+// グラフデータ
+const GRAPH_WINDOW = 10000; // 10s
+const graphPoints = []; // {t, hz, state}
+let graphVisible = true;
+
+// ============================================================
+// UI状態
+// ============================================================
+document.getElementById('a4-slider').addEventListener('input', function() {
+  A4_HZ = +this.value;
+  document.getElementById('a4-val').textContent = A4_HZ + ' Hz';
+  if (oscNode && pracMidi !== null) updateOscFreq();
+});
+
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('panel-' + tab.dataset.tab).classList.add('active');
+    if (tab.dataset.tab === 'report') renderReport();
+  });
+});
+
+document.getElementById('attack-slider').addEventListener('input', function() {
+  ATTACK_MS = +this.value;
+  document.getElementById('attack-val').textContent = ATTACK_MS + ' ms';
+});
+document.getElementById('silence-slider').addEventListener('input', function() {
+  SILENCE_THRESH = +this.value;
+  document.getElementById('silence-val').textContent = SILENCE_THRESH;
+});
+document.getElementById('silend-slider').addEventListener('input', function() {
+  SILENCE_END_MS = +this.value;
+  document.getElementById('silend-val').textContent = SILENCE_END_MS + ' ms';
+});
+
+document.getElementById('graph-toggle').addEventListener('click', function() {
+  graphVisible = !graphVisible;
+  document.getElementById('graph-canvas').style.display = graphVisible ? '' : 'none';
+  this.textContent = graphVisible ? '非表示' : '表示';
+});
+
+function resetAllData() {
+  if (!confirm('全記録をリセットしますか？')) return;
+  for (let m = MIDI_MIN; m <= MIDI_MAX; m++) {
+    noteData[m] = { count: 0, sumCents: 0, centsArr: [] };
+  }
+  renderNoteTable();
+  renderReport();
+}
+document.getElementById('reset-btn').addEventListener('click', resetAllData);
+document.getElementById('measure-reset-btn').addEventListener('click', resetAllData);
+
+document.getElementById('export-btn').addEventListener('click', exportCSV);
+
+document.getElementById('prac-start-btn').addEventListener('click', async () => {
+  if (!isStarted) {
+    // マイク未起動なら自動で開始
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = FFT_SIZE;
+      analyser.smoothingTimeConstant = 0.3;
+      sourceNode = audioCtx.createMediaStreamSource(stream);
+      sourceNode.connect(analyser);
+      isStarted = true;
+      document.getElementById('start-btn').textContent = '停止';
+      document.getElementById('start-btn').className = 'btn btn-danger';
+      timerId = setInterval(detectLoop, DETECT_INTERVAL);
+    } catch(e) {
+      alert('マイクへのアクセスが拒否されました: ' + e.message);
+      return;
+    }
+  }
+  pracActive = true;
+  document.getElementById('prac-start-btn').disabled = true;
+  document.getElementById('prac-note-sub').textContent = '演奏すると音程を自動検出します';
+  document.getElementById('ref-status').textContent = '待機中…';
+});
+
+document.getElementById('prac-stop-btn').addEventListener('click', stopPractice);
+
+// ============================================================
+// マイク開始
+// ============================================================
+document.getElementById('start-btn').addEventListener('click', async () => {
+  if (isStarted) { stopAudio(); return; }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = FFT_SIZE;
+    analyser.smoothingTimeConstant = 0.3;
+    sourceNode = audioCtx.createMediaStreamSource(stream);
+    sourceNode.connect(analyser);
+    isStarted = true;
+    document.getElementById('start-btn').textContent = '停止';
+    document.getElementById('start-btn').className = 'btn btn-danger';
+    timerId = setInterval(detectLoop, DETECT_INTERVAL);
+  } catch(e) {
+    alert('マイクへのアクセスが拒否されました: ' + e.message);
+  }
+});
+
+function stopAudio() {
+  if (pracActive) stopPractice();
+  if (timerId) { clearInterval(timerId); timerId = null; }
+  if (sourceNode) { sourceNode.disconnect(); sourceNode = null; }
+  if (audioCtx) { audioCtx.close(); audioCtx = null; }
+  isStarted = false;
+  document.getElementById('start-btn').textContent = 'マイク開始';
+  document.getElementById('start-btn').className = 'btn btn-primary';
+  setStateBadge('silent');
+}
+
+// ============================================================
+// ピッチ検出 (自己相関)
+// ============================================================
+function detectLoop() {
+  const buf = new Float32Array(analyser.fftSize);
+  analyser.getFloatTimeDomainData(buf);
+
+  const rms = calcRMS(buf);
+  const now = Date.now();
+
+  if (rms < SILENCE_THRESH / 100) {
+    // 無音
+    if (trackState === 'stable') {
+      if (lastSoundTime !== null && now - lastSoundTime > SILENCE_END_MS) {
+        finalizeNote();
+        trackState = 'silent';
+        // 練習モード: linger timer開始（まだ基準音は鳴らし続ける）
+        if (pracActive && refPlaying && pracAutoTimer === null) {
+          pracAutoTimer = setTimeout(() => {
+            fadeOutRef();
+            pracAutoTimer = null;
+          }, REF_LINGER_MS);
+          document.getElementById('ref-status').textContent = `基準音確認中（${REF_LINGER_MS/1000}秒後に停止）`;
+        }
+      }
+    } else if (trackState === 'attack') {
+      trackState = 'silent';
+      attackStartTime = null;
+    }
+    drawTuner(null, null, 'tuner-canvas');
+    drawTuner(null, null, 'prac-tuner');
+    updateNowDisplay(null, null);
+    graphPoints.push({ t: now, hz: null, state: trackState });
+    trimGraph(now);
+    drawGraph();
+    return;
+  }
+
+  const hz = autocorrelate(buf, audioCtx.sampleRate);
+  if (hz === null) {
+    lastSoundTime = now;
+    graphPoints.push({ t: now, hz: null, state: trackState });
+    trimGraph(now);
+    drawGraph();
+    return;
+  }
+
+  const midiF = hzToMidi(hz);
+  const midiI = Math.round(midiF);
+  const cents = (midiF - midiI) * 100;
+
+  lastSoundTime = now;
+
+  // 状態機械
+  if (trackState === 'silent') {
+    trackState = 'attack';
+    attackStartTime = now;
+    currentMidi = midiI;
+    currentCentsArr = [];
+  } else if (trackState === 'attack') {
+    if (now - attackStartTime >= ATTACK_MS) {
+      trackState = 'stable';
+      currentMidi = midiI;
+      currentCentsArr = [];
+    }
+  } else if (trackState === 'stable') {
+    // 音が大きく変わった?
+    if (Math.abs(midiI - currentMidi) >= 1) {
+      // 前のノートを確定
+      finalizeNote();
+      trackState = 'attack';
+      attackStartTime = now;
+      currentMidi = midiI;
+      currentCentsArr = [];
+    } else {
+      currentMidi = midiI;
+      currentCentsArr.push(cents);
+    }
+  }
+
+  // 練習モード: 安定したら基準音を自動セット
+  if (pracActive && trackState === 'stable') {
+    if (pracMidi !== midiI) {
+      // 音が変わった or 初めて検出 → 基準音を切り替え
+      if (pracAutoTimer !== null) { clearTimeout(pracAutoTimer); pracAutoTimer = null; }
+      pracMidi = midiI;
+      startRefTone(midiI);
+    } else if (!refPlaying) {
+      // 同じ音だが基準音がフェードアウト中なら再開
+      if (pracAutoTimer !== null) { clearTimeout(pracAutoTimer); pracAutoTimer = null; }
+      startRefTone(midiI);
+    }
+  }
+
+  // 表示更新
+  if (trackState === 'stable') {
+    updateNowDisplay(noteLabel(midiI), cents);
+    drawTuner(cents, hz, 'tuner-canvas');
+    if (pracActive && pracMidi !== null) {
+      const pracCents = (midiF - pracMidi) * 100;
+      drawTuner(pracCents, hz, 'prac-tuner');
+      updatePracDisplay(pracCents, midiI);
+    }
+  } else {
+    updateNowDisplay(noteLabel(midiI) + '…', null);
+    drawTuner(null, null, 'tuner-canvas');
+  }
+
+  setStateBadge(trackState);
+
+  graphPoints.push({ t: now, hz: hz, state: trackState });
+  trimGraph(now);
+  drawGraph();
+}
+
+function calcRMS(buf) {
+  let sum = 0;
+  for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+  return Math.sqrt(sum / buf.length) * 100;
+}
+
+function autocorrelate(buf, sampleRate) {
+  const N = buf.length;
+  // RMS check
+  let rms = 0;
+  for (let i = 0; i < N; i++) rms += buf[i] * buf[i];
+  rms = Math.sqrt(rms / N);
+  if (rms < 0.01) return null;
+
+  // 自己相関
+  const corr = new Float32Array(N);
+  for (let lag = 0; lag < N / 2; lag++) {
+    let s = 0;
+    for (let i = 0; i < N - lag; i++) s += buf[i] * buf[i + lag];
+    corr[lag] = s;
+  }
+
+  // 最初の極小点を探す
+  let d = 0;
+  while (d < N / 2 - 1 && corr[d] > corr[d + 1]) d++;
+  // 極大点を探す
+  let maxVal = -1, maxI = d;
+  for (let i = d; i < N / 2; i++) {
+    if (corr[i] > maxVal) { maxVal = corr[i]; maxI = i; }
+  }
+  // 正規化して信頼性チェック
+  if (corr[0] === 0) return null;
+  const confidence = maxVal / corr[0];
+  if (confidence < 0.5) return null;
+
+  // 放物線補間
+  let freq;
+  if (maxI > 0 && maxI < N / 2 - 1) {
+    const y0 = corr[maxI - 1], y1 = corr[maxI], y2 = corr[maxI + 1];
+    const d2 = y0 - 2 * y1 + y2;
+    const delta = Math.abs(d2) < 1e-10 ? 0 : 0.5 * (y0 - y2) / d2;
+    freq = sampleRate / (maxI + delta);
+  } else {
+    freq = sampleRate / maxI;
+  }
+
+  // 楽器音域フィルタ (E3=164Hz ~ C6=1047Hz に少し余裕)
+  if (freq < 150 || freq > 1100) return null;
+  return freq;
+}
+
+function finalizeNote() {
+  if (currentMidi === null || currentCentsArr.length === 0) return;
+  if (currentMidi < MIDI_MIN || currentMidi > MIDI_MAX) return;
+
+  const avg = currentCentsArr.reduce((a, b) => a + b, 0) / currentCentsArr.length;
+  noteData[currentMidi].count++;
+  noteData[currentMidi].sumCents += avg;
+  noteData[currentMidi].centsArr.push(avg);
+  currentCentsArr = [];
+  renderNoteTable();
+}
+
+// ============================================================
+// UI描画
+// ============================================================
+function updateNowDisplay(label, cents) {
+  document.getElementById('now-note').textContent = label || '—';
+  const el = document.getElementById('now-cents');
+  if (cents === null) {
+    el.textContent = '— ¢';
+    el.className = '';
+  } else {
+    const sign = cents >= 0 ? '+' : '';
+    el.textContent = sign + cents.toFixed(1) + ' ¢';
+    el.className = Math.abs(cents) < 10 ? 'center' : cents > 0 ? 'sharp' : 'flat';
+  }
+}
+
+function updatePracDisplay(cents, midiI) {
+  const el = document.getElementById('prac-cents');
+  if (cents === null) { el.textContent = '— ¢'; return; }
+  const sign = cents >= 0 ? '+' : '';
+  el.textContent = sign + cents.toFixed(1) + ' ¢';
+  const color = Math.abs(cents) < 10 ? '#3fb950' : cents > 0 ? '#f85149' : '#79c0ff';
+  el.style.color = color;
+
+  // 音名の色: 合ってれば緑、ずれてれば赤/青
+  document.getElementById('prac-note-big').style.color = color;
+  // 演奏中の音名をサブテキストに表示
+  document.getElementById('prac-note-sub').textContent =
+    '演奏中: ' + noteLabel(midiI) + '　基準: ' + (pracMidi !== null ? noteLabel(pracMidi) : '—');
+}
+
+function setStateBadge(state) {
+  const el = document.getElementById('state-badge');
+  el.className = 'state-badge ' + state;
+  const map = { silent: 'SILENT', attack: 'ATTACK', stable: 'STABLE' };
+  el.textContent = map[state] || state;
+}
+
+// チューナーバー
+function drawTuner(cents, hz, canvasId) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const W = canvas.offsetWidth || 300;
+  const H = canvas.offsetHeight || 60;
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+
+  // 背景
+  ctx.fillStyle = '#0d1117';
+  ctx.fillRect(0, 0, W, H);
+
+  // 目盛り
+  const cx = W / 2;
+  const range = 60; // ±60¢表示
+  for (let c = -50; c <= 50; c += 10) {
+    const x = cx + (c / range) * (W / 2 - 10);
+    ctx.strokeStyle = c === 0 ? '#58a6ff' : '#30363d';
+    ctx.lineWidth = c === 0 ? 2 : 1;
+    ctx.beginPath(); ctx.moveTo(x, 4); ctx.lineTo(x, H - 4); ctx.stroke();
+    if (c !== 0) {
+      ctx.fillStyle = '#8b949e';
+      ctx.font = '9px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText((c > 0 ? '+' : '') + c, x, H - 1);
+    }
+  }
+
+  if (cents === null) return;
+
+  // ニードル
+  const clamp = Math.max(-range, Math.min(range, cents));
+  const nx = cx + (clamp / range) * (W / 2 - 10);
+  const color = Math.abs(cents) < 10 ? '#3fb950' : Math.abs(cents) < 25 ? '#d29922' : '#f85149';
+
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 3;
+  ctx.shadowBlur = 8;
+  ctx.shadowColor = color;
+  ctx.beginPath(); ctx.moveTo(nx, 4); ctx.lineTo(nx, H - 14); ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // 三角マーカー
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(nx, H - 14);
+  ctx.lineTo(nx - 5, H - 4);
+  ctx.lineTo(nx + 5, H - 4);
+  ctx.closePath();
+  ctx.fill();
+}
+
+// ノート一覧テーブル
+function renderNoteTable() {
+  const tbody = document.getElementById('note-tbody');
+  const rows = [];
+  for (let m = MIDI_MAX; m >= MIDI_MIN; m--) {
+    const d = noteData[m];
+    if (d.count === 0) continue;
+    const avg = d.sumCents / d.count;
+    rows.push({ midi: m, count: d.count, avg });
+  }
+  rows.sort((a, b) => b.midi - a.midi); // 高音から順
+
+  const maxCnt = rows.length ? Math.max(...rows.map(r => r.count)) : 1;
+
+  tbody.innerHTML = rows.slice(0, 20).map(r => {
+    const avg = r.avg.toFixed(1);
+    const sign = r.avg >= 0 ? '+' : '';
+    const color = Math.abs(r.avg) < 10 ? '#3fb950' : r.avg > 0 ? '#f85149' : '#79c0ff';
+    const barW = Math.round(r.count / maxCnt * 80);
+    return `<tr>
+      <td style="font-weight:600">${noteLabel(r.midi)}</td>
+      <td>${r.count}</td>
+      <td style="color:${color}">${sign}${avg} ¢</td>
+      <td><div class="note-bar"><div class="note-bar-fill" style="width:${barW}px;background:${color};left:0"></div></div></td>
+    </tr>`;
+  }).join('');
+}
+
+// ============================================================
+// デバッググラフ
+// ============================================================
+function trimGraph(now) {
+  const cutoff = now - GRAPH_WINDOW;
+  while (graphPoints.length && graphPoints[0].t < cutoff) graphPoints.shift();
+}
+
+function drawGraph() {
+  const canvas = document.getElementById('graph-canvas');
+  if (!canvas || !graphVisible) return;
+  const W = canvas.offsetWidth || 700;
+  const H = canvas.offsetHeight || 150;
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#0d1117';
+  ctx.fillRect(0, 0, W, H);
+
+  if (graphPoints.length < 2) return;
+
+  const now = Date.now();
+  const tMin = now - GRAPH_WINDOW;
+  const tMax = now;
+
+  // Y軸: MIDIノート (E3=52 ~ C6=84)
+  const hzMin = midiToHz(MIDI_MIN - 2);
+  const hzMax = midiToHz(MIDI_MAX + 2);
+
+  function xOf(t) { return (t - tMin) / (tMax - tMin) * W; }
+  function yOf(hz) {
+    const lv = Math.log2(hz / hzMin) / Math.log2(hzMax / hzMin);
+    return H - lv * (H - 4) - 2;
+  }
+
+  // グリッド: オクターブライン
+  for (let m = MIDI_MIN; m <= MIDI_MAX; m++) {
+    if (m % 12 !== 0) continue; // C音
+    const hz = midiToHz(m);
+    const y = yOf(hz);
+    ctx.strokeStyle = '#21262d';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#8b949e';
+    ctx.font = '9px monospace';
+    ctx.fillText(noteLabel(m), 2, y - 2);
+  }
+
+  // プロット
+  const pts = graphPoints.filter(p => p.hz !== null);
+  for (const p of pts) {
+    const x = xOf(p.t);
+    const y = yOf(p.hz);
+    const col = p.state === 'stable' ? '#3fb950' : p.state === 'attack' ? '#d29922' : '#58a6ff';
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.arc(x, y, 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // 凡例
+  const legend = [['stable','#3fb950'], ['attack','#d29922']];
+  let lx = W - 120;
+  for (const [label, col] of legend) {
+    ctx.fillStyle = col;
+    ctx.fillRect(lx, 6, 10, 10);
+    ctx.fillStyle = '#8b949e';
+    ctx.font = '10px sans-serif';
+    ctx.fillText(label, lx + 13, 15);
+    lx += 60;
+  }
+}
+
+// ============================================================
+// 練習モード（自動検出）
+// ============================================================
+function startRefTone(midi) {
+  if (!audioCtx) return;
+
+  if (!oscNode) {
+    // 初回 or 停止後: オシレーター新規作成
+    gainNode = audioCtx.createGain();
+    gainNode.gain.value = 0;
+    oscNode = audioCtx.createOscillator();
+    oscNode.type = 'sine';
+    oscNode.frequency.value = midiToHz(midi);
+    oscNode.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+    oscNode.start();
+  } else {
+    // 音が変わった: 周波数を滑らかに切り替え
+    oscNode.frequency.setTargetAtTime(midiToHz(midi), audioCtx.currentTime, 0.04);
+  }
+
+  // フェードイン
+  gainNode.gain.cancelScheduledValues(audioCtx.currentTime);
+  gainNode.gain.setTargetAtTime(0.25, audioCtx.currentTime, 0.05);
+  refPlaying = true;
+
+  document.getElementById('prac-note-big').textContent = noteLabel(midi);
+  document.getElementById('prac-note-big').style.color = '#58a6ff';
+  document.getElementById('ref-status').textContent = '基準音: ' + noteLabel(midi) + ' (' + midiToHz(midi).toFixed(1) + ' Hz)';
+}
+
+function fadeOutRef() {
+  if (!gainNode || !audioCtx) return;
+  gainNode.gain.cancelScheduledValues(audioCtx.currentTime);
+  gainNode.gain.setTargetAtTime(0, audioCtx.currentTime, 0.3);
+  refPlaying = false;
+  document.getElementById('ref-status').textContent = '次の音を吹いてください';
+}
+
+function stopPractice() {
+  if (pracAutoTimer !== null) { clearTimeout(pracAutoTimer); pracAutoTimer = null; }
+  if (oscNode) { try { oscNode.stop(); } catch(e){} oscNode = null; }
+  if (gainNode) { gainNode.disconnect(); gainNode = null; }
+  pracActive = false;
+  pracMidi = null;
+  refPlaying = false;
+  document.getElementById('prac-start-btn').disabled = false;
+  document.getElementById('ref-status').textContent = '—';
+  document.getElementById('prac-note-big').textContent = '—';
+  document.getElementById('prac-note-big').style.color = '#58a6ff';
+  document.getElementById('prac-note-sub').textContent = '演奏すると音程を自動検出します';
+  document.getElementById('prac-cents').textContent = '— ¢';
+  drawTuner(null, null, 'prac-tuner');
+}
+
+// ============================================================
+// レポート
+// ============================================================
+function renderReport() {
+  const rows = [];
+  for (let m = MIDI_MIN; m <= MIDI_MAX; m++) {
+    const d = noteData[m];
+    if (d.count === 0) continue;
+    const avg = d.sumCents / d.count;
+    rows.push({ midi: m, label: noteLabel(m), count: d.count, avg });
+  }
+  // 高音から
+  rows.sort((a, b) => b.midi - a.midi);
+
+  const total = rows.reduce((s, r) => s + r.count, 0);
+  document.getElementById('report-summary').textContent =
+    `総演奏数: ${total}回 / ${rows.length}種類の音`;
+
+  const tbody = document.getElementById('report-tbody');
+  tbody.innerHTML = rows.map(r => {
+    const avg = r.avg.toFixed(1);
+    const sign = r.avg >= 0 ? '+' : '';
+    const color = Math.abs(r.avg) < 10 ? '#3fb950' : r.avg > 0 ? '#f85149' : '#79c0ff';
+    const trend = Math.abs(r.avg) < 10 ? '良好' : r.avg > 0 ? '高め' : '低め';
+    const barCx = 60;
+    const maxBar = 40;
+    const barOff = Math.round(Math.min(Math.abs(r.avg), 50) / 50 * maxBar);
+    const barStyle = r.avg > 0
+      ? `left:${barCx}px;width:${barOff}px;background:${color}`
+      : `left:${barCx - barOff}px;width:${barOff}px;background:${color}`;
+    return `<tr>
+      <td style="font-weight:600">${r.label}</td>
+      <td>${r.count}</td>
+      <td style="color:${color}">${sign}${avg}</td>
+      <td style="color:${color}">${trend}</td>
+      <td style="padding:6px 10px">
+        <div style="position:relative;width:${barCx*2}px;height:8px;background:#21262d;border-radius:4px;">
+          <div style="position:absolute;height:8px;border-radius:4px;${barStyle}"></div>
+          <div style="position:absolute;left:${barCx - 1}px;width:2px;height:8px;background:#58a6ff;border-radius:1px;"></div>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+
+  drawReportChart(rows);
+}
+
+function drawReportChart(rows) {
+  const canvas = document.getElementById('report-canvas');
+  if (!canvas) return;
+  const W = canvas.offsetWidth || 700;
+  const H = 200;
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#0d1117';
+  ctx.fillRect(0, 0, W, H);
+
+  if (!rows.length) return;
+
+  const margin = { l: 50, r: 20, t: 20, b: 40 };
+  const pw = W - margin.l - margin.r;
+  const ph = H - margin.t - margin.b;
+
+  // Y軸 ±60¢
+  const yMin = -60, yMax = 60;
+  function yCv(c) { return margin.t + ph - (c - yMin) / (yMax - yMin) * ph; }
+
+  // グリッド
+  for (const c of [-50, -25, 0, 25, 50]) {
+    const y = yCv(c);
+    ctx.strokeStyle = c === 0 ? '#58a6ff44' : '#21262d';
+    ctx.lineWidth = c === 0 ? 1.5 : 1;
+    ctx.beginPath(); ctx.moveTo(margin.l, y); ctx.lineTo(W - margin.r, y); ctx.stroke();
+    ctx.fillStyle = '#8b949e'; ctx.font = '9px monospace'; ctx.textAlign = 'right';
+    ctx.fillText((c >= 0 ? '+' : '') + c + '¢', margin.l - 4, y + 3);
+  }
+
+  // データ
+  const n = rows.length;
+  const barW = Math.max(4, Math.min(20, pw / n - 2));
+  rows.forEach((r, i) => {
+    const x = margin.l + (i + 0.5) / n * pw;
+    const cy = Math.max(yMin, Math.min(yMax, r.avg));
+    const y0 = yCv(0), y1 = yCv(cy);
+    const color = Math.abs(r.avg) < 10 ? '#3fb950' : r.avg > 0 ? '#f85149' : '#79c0ff';
+    ctx.fillStyle = color;
+    ctx.fillRect(x - barW / 2, Math.min(y0, y1), barW, Math.abs(y1 - y0) + 1);
+
+    // ラベル
+    if (n <= 33) {
+      ctx.fillStyle = '#8b949e';
+      ctx.font = '8px monospace';
+      ctx.textAlign = 'center';
+      ctx.save();
+      ctx.translate(x, H - margin.b + 4);
+      ctx.rotate(-Math.PI / 4);
+      ctx.fillText(r.label, 0, 0);
+      ctx.restore();
+    }
+  });
+
+  ctx.fillStyle = '#e6edf3';
+  ctx.font = '11px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('全音域ピッチ偏差マップ — ドイツ音名 (E3〜C6)', W / 2, margin.t - 4);
+}
+
+// ============================================================
+// CSVエクスポート
+// ============================================================
+function exportCSV() {
+  const rows = ['音名,MIDI,回数,平均偏差(¢)'];
+  for (let m = MIDI_MAX; m >= MIDI_MIN; m--) {
+    const d = noteData[m];
+    if (d.count === 0) continue;
+    const avg = (d.sumCents / d.count).toFixed(2);
+    rows.push(`${noteLabel(m)},${m},${d.count},${avg}`);
+  }
+  const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'pitch_report.csv'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ============================================================
+// ============================================================
+// 初期化
+// ============================================================
+renderNoteTable();
+renderReport();
+
+// キャンバスサイズ初期化
+window.addEventListener('resize', () => { drawGraph(); });
+
+// A4スライダーイベントを初期化時に発火
+document.getElementById('a4-slider').dispatchEvent(new Event('input'));
+</script>
+</body>
+</html>
