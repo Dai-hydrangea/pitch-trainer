@@ -811,10 +811,11 @@ function autocorrelate(buf, sampleRate) {
 
   if (bestTau < tauMin) return null;
 
-  // サブハーモニクスチェック: tau2がbestTauより明確に良い場合のみ下げる
-  // (緩い条件だと声や管楽器で1オクターブ低く誤検出しやすい)
+  // サブハーモニクスチェック: tau2がbestTauより低い値(=より強い周期性)の場合のみシフト
+  // - 声: 基音tauが最小値 → tau2は大きい → シフトしない (オクターブ低検出を防ぐ)
+  // - トランペット: 倍音tau(半周期)が先に検出 → 基音tau2の方が低い → シフトして修正
   const tau2 = bestTau * 2;
-  if (tau2 <= tauMax && cmndf[tau2] < THRESH && cmndf[tau2] < cmndf[bestTau] * 0.8) {
+  if (tau2 <= tauMax && cmndf[tau2] < THRESH * 1.5 && cmndf[tau2] < cmndf[bestTau]) {
     bestTau = tau2;
   }
 
