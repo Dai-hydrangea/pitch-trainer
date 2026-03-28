@@ -1290,9 +1290,19 @@ let ensData      = {};     // role → {count, sumJI, jiArr}
   updateEnsChordDisplay();
 })();
 
-document.getElementById('ens-play-btn').addEventListener('click', () => {
-  if (!audioCtx) { alert('まずマイクを開始してください'); return; }
-  if (ensActive) stopChordOsc(true); else startChordOsc();
+document.getElementById('ens-play-btn').addEventListener('click', async () => {
+  if (ensActive) { stopChordOsc(true); return; }
+  // AudioContextがなければ作成（マイクなしでもコード再生可能）
+  if (!audioCtx) {
+    try {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    } catch(e) { alert('音声再生に対応していません'); return; }
+  }
+  // iOSはユーザー操作内でresumeしないと音が出ない
+  if (audioCtx.state === 'suspended') {
+    try { await audioCtx.resume(); } catch(e) {}
+  }
+  startChordOsc();
 });
 document.getElementById('btn-mode-full').addEventListener('click', () => {
   ensMode = 'full';
@@ -1313,8 +1323,6 @@ document.getElementById('ens-reset-btn').addEventListener('click', () => {
 function startChordOsc() {
   stopEnsSingleNote();
   stopChordOsc(false);
-  if (!audioCtx) return;
-  if (audioCtx.state === 'suspended') audioCtx.resume();
   const def = CHORD_DEFS[ensChordType];
   const rootHz = midiToHz(ensRootMidi);
   ensMasterGain = audioCtx.createGain();
@@ -1379,8 +1387,14 @@ function updateEnsChordDisplay() {
     btn.className = 'ens-tone-btn';
     btn.dataset.idx = i;
     btn.innerHTML = `${name}<span class="ens-ji-label">${offStr}</span>`;
-    btn.addEventListener('click', () => {
-      if (!audioCtx) { alert('まずマイクを開始してください'); return; }
+    btn.addEventListener('click', async () => {
+      if (!audioCtx) {
+        try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+        catch(e) { return; }
+      }
+      if (audioCtx.state === 'suspended') {
+        try { await audioCtx.resume(); } catch(e) {}
+      }
       playEnsSingleNote(ratio, i);
     });
     container.appendChild(btn);
@@ -1445,8 +1459,6 @@ let ensSingleOsc = null, ensSingleGain = null, ensSingleToneIdx = -1;
 function playEnsSingleNote(ratio, idx) {
   if (ensSingleToneIdx === idx) { stopEnsSingleNote(); return; } // 同じボタン→停止
   stopEnsSingleNote();
-  if (!audioCtx) return;
-  if (audioCtx.state === 'suspended') audioCtx.resume();
   const freq = midiToHz(ensRootMidi) * ratio;
   ensSingleOsc = audioCtx.createOscillator();
   ensSingleGain = audioCtx.createGain();
