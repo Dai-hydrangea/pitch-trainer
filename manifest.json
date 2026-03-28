@@ -1,0 +1,18 @@
+{
+  "name": "音程練習アプリ",
+  "short_name": "音程練習",
+  "description": "リアルタイム音程検出・練習アプリ for 管楽器",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0d1117",
+  "theme_color": "#161b22",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

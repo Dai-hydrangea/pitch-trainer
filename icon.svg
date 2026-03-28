@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- 背景 -->
+  <rect width="512" height="512" rx="100" fill="#161b22"/>
+  <!-- 音符の符頭 -->
+  <ellipse cx="205" cy="368" rx="78" ry="54"
+           transform="rotate(-18 205 368)" fill="#58a6ff"/>
+  <!-- 符幹 -->
+  <rect x="270" y="148" width="24" height="228" rx="12" fill="#58a6ff"/>
+  <!-- 符尾（フラッグ） -->
+  <path d="M294 148 Q420 195 395 305 Q350 240 294 265 Z" fill="#58a6ff"/>
+  <!-- チューニングを示す小さなドット（±イメージ） -->
+  <circle cx="356" cy="420" r="14" fill="#3fb950"/>
+  <rect x="349" y="416" width="14" height="8" rx="4" fill="#0d1117"/>
+  <rect x="352" y="412" width="8" height="16" rx="4" fill="#0d1117"/>
+</svg>
