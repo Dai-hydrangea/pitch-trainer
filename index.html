@@ -522,40 +522,30 @@ document.getElementById('prac-stop-btn').addEventListener('click', stopPractice)
 // ============================================================
 // マイク開始
 // ============================================================
-async function startAudio() {
-  if (isStarted) return;
-  const stream = await navigator.mediaDevices.getUserMedia({
-    audio: {
-      echoCancellation: false,   // iOS Audio Ducking 軽減
-      noiseSuppression: false,
-      autoGainControl: false
-    },
-    video: false
-  });
-  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  analyser = audioCtx.createAnalyser();
-  analyser.fftSize = FFT_SIZE;
-  analyser.smoothingTimeConstant = 0.3;
-  sourceNode = audioCtx.createMediaStreamSource(stream);
-  sourceNode.connect(analyser);
-  isStarted = true;
-  document.getElementById('start-btn').textContent = '停止';
-  document.getElementById('start-btn').className = 'btn btn-danger';
-  timerId = setInterval(detectLoop, DETECT_INTERVAL);
-}
-
 document.getElementById('start-btn').addEventListener('click', async () => {
   if (isStarted) { stopAudio(); return; }
   try {
-    await startAudio();
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: false,   // iOS Audio Ducking 軽減
+        noiseSuppression: false,
+        autoGainControl: false
+      },
+      video: false
+    });
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = FFT_SIZE;
+    analyser.smoothingTimeConstant = 0.3;
+    sourceNode = audioCtx.createMediaStreamSource(stream);
+    sourceNode.connect(analyser);
+    isStarted = true;
+    document.getElementById('start-btn').textContent = '停止';
+    document.getElementById('start-btn').className = 'btn btn-danger';
+    timerId = setInterval(detectLoop, DETECT_INTERVAL);
   } catch(e) {
     alert('マイクへのアクセスが拒否されました: ' + e.message);
   }
-});
-
-// ページロード時に自動でマイク開始（iOSは初回のみユーザー操作が必要なため失敗時は無視）
-window.addEventListener('load', () => {
-  startAudio().catch(() => {});
 });
 
 function stopAudio() {
