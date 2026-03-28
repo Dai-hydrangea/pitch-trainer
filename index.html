@@ -423,6 +423,9 @@ let ATTACK_MS = 150;
 let SILENCE_THRESH = 2; // 感度高め（機種差対応）。設定スライダーで変更可
 let smoothedRms = 0; // EMAスムージング済みRMS
 let SILENCE_END_MS = 120;
+let smoothedDispCents = null; // 表示用セント値のEMAスムージング
+let lastDisplayTime = 0;      // 表示更新レート制御（チカチカ防止）
+const DISPLAY_INTERVAL = 120; // ms: 表示更新間隔
 
 // グラフデータ
 const GRAPH_WINDOW = 10000; // 10s
@@ -606,10 +609,14 @@ function detectLoop() {
         attackStartTime = null;
       }
     }
-    drawTuner(null, null, 'tuner-canvas');
-    drawTuner(null, null, 'prac-tuner');
-    updateNowDisplay(null, null);
-    updateRmsDisplay(rms);
+    smoothedDispCents = null;
+    if (now - lastDisplayTime >= DISPLAY_INTERVAL) {
+      lastDisplayTime = now;
+      drawTuner(null, null, 'tuner-canvas');
+      drawTuner(null, null, 'prac-tuner');
+      updateNowDisplay(null, null);
+      updateRmsDisplay(rms);
+    }
     graphPoints.push({ t: now, hz: null, state: trackState });
     trimGraph(now);
     drawGraph();
@@ -686,25 +693,42 @@ function detectLoop() {
     }
   }
 
-  // 表示更新
+  // セント値のEMAスムージング（チカチカ防止・±10¢以内を読みやすく）
   if (trackState === 'stable') {
-    updateNowDisplay(noteLabel(midiI), cents);
-    drawTuner(cents, hz, 'tuner-canvas');
-    if (pracActive && pracMidi !== null) {
-      const pracCents = (midiF - pracMidi) * 100;
-      drawTuner(pracCents, hz, 'prac-tuner');
-      updatePracDisplay(pracCents, midiI);
-    }
-    // 合奏モード: 純正調評価
-    if (ensActive) handleEnsDetection(midiF, midiI, hz);
+    smoothedDispCents = smoothedDispCents === null ? cents : smoothedDispCents * 0.5 + cents * 0.5;
   } else {
-    updateNowDisplay(noteLabel(midiI) + '…', null);
-    drawTuner(null, null, 'tuner-canvas');
-    if (ensActive) updateEnsDisplay(null, null, null, null);
+    smoothedDispCents = null;
   }
 
-  updateRmsDisplay(rms);
-  setStateBadge(trackState);
+  // 表示更新: DISPLAY_INTERVAL ms ごとに制限（検出は50msのまま）
+  const doDisplay = (now - lastDisplayTime >= DISPLAY_INTERVAL);
+  if (doDisplay) lastDisplayTime = now;
+
+  if (trackState === 'stable') {
+    if (doDisplay) {
+      updateNowDisplay(noteLabel(midiI), smoothedDispCents);
+      drawTuner(smoothedDispCents, hz, 'tuner-canvas');
+      if (pracActive && pracMidi !== null) {
+        const pracCents = (midiF - pracMidi) * 100;
+        const smoothedPrac = smoothedDispCents + (pracCents - cents); // 同じスムージングオフセット適用
+        drawTuner(smoothedPrac, hz, 'prac-tuner');
+        updatePracDisplay(smoothedPrac, midiI);
+      }
+    }
+    // 合奏モード: 純正調評価（毎フレーム検出、表示のみ制限）
+    if (ensActive) handleEnsDetection(midiF, midiI, hz);
+  } else {
+    if (doDisplay) {
+      updateNowDisplay(noteLabel(midiI) + '…', null);
+      drawTuner(null, null, 'tuner-canvas');
+      if (ensActive) updateEnsDisplay(null, null, null, null);
+    }
+  }
+
+  if (doDisplay) {
+    updateRmsDisplay(rms);
+    setStateBadge(trackState);
+  }
 
   graphPoints.push({ t: now, hz: hz, state: trackState });
   trimGraph(now);
@@ -786,10 +810,10 @@ function autocorrelate(buf, sampleRate) {
 
   if (bestTau < tauMin) return null;
 
-  // サブハーモニクスチェック: 検出したtauの2倍(1オクターブ低い周期)にも谷があれば
-  // そちらが真の基音の可能性が高い（倍音を基音と誤検出するオクターブエラー対策）
+  // サブハーモニクスチェック: tau2がbestTauより明確に良い場合のみ下げる
+  // (緩い条件だと声や管楽器で1オクターブ低く誤検出しやすい)
   const tau2 = bestTau * 2;
-  if (tau2 <= tauMax && cmndf[tau2] < THRESH * 1.3) {
+  if (tau2 <= tauMax && cmndf[tau2] < THRESH && cmndf[tau2] < cmndf[bestTau] * 0.8) {
     bestTau = tau2;
   }
 
