@@ -2,8 +2,17 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>音程練習アプリ</title>
+
+<!-- PWA -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#161b22">
+<!-- iOS ホーム画面追加対応 -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="音程練習">
+<link rel="apple-touch-icon" href="icon.svg">
 <style>
 :root {
   --bg: #0d1117;
@@ -19,7 +28,13 @@
   --radius: 8px;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px; min-height: 100vh; }
+body {
+  background: var(--bg); color: var(--text);
+  font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px; min-height: 100vh;
+  /* iPhoneのノッチ・ホームバー対応 */
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
 h1 { font-size: 20px; font-weight: 600; }
 h2 { font-size: 16px; font-weight: 600; color: var(--accent); margin-bottom: 8px; }
 h3 { font-size: 13px; font-weight: 600; color: var(--text2); margin-bottom: 6px; }
@@ -1078,6 +1093,16 @@ window.addEventListener('resize', () => { drawGraph(); });
 
 // A4スライダーイベントを初期化時に発火
 document.getElementById('a4-slider').dispatchEvent(new Event('input'));
+
+// ============================================================
+// Service Worker 登録（PWA・オフライン対応）
+// ============================================================
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js')
+      .catch(e => console.warn('SW登録失敗:', e));
+  });
+}
 
 // ============================================================
 // iOS AudioContext 自動サスペンド対策
