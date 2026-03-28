@@ -129,6 +129,26 @@ tr:last-child td { border-bottom: none; }
 .mb12 { margin-bottom: 12px; }
 .text2 { color: var(--text2); }
 .text-sm { font-size: 12px; }
+
+/* ===== 合奏タブ ===== */
+.ens-root-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; margin: 8px 0; }
+.ens-btn { padding: 8px 2px; border: 1px solid var(--border); border-radius: 6px; background: var(--card); color: var(--text); font-size: 13px; cursor: pointer; text-align: center; }
+.ens-btn.sel, .ens-type-btn.sel { background: var(--accent); color: #fff; border-color: var(--accent); }
+.ens-type-row { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 0; }
+.ens-type-btn { padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--card); color: var(--text); font-size: 12px; cursor: pointer; }
+#ens-chord-display { font-size: 20px; font-weight: 700; text-align: center; padding: 10px 0 2px; color: var(--accent); }
+.ens-tone-name { margin: 0 2px; }
+.ens-ji-label { font-size: 10px; font-weight: 400; color: var(--text2); margin-left: 1px; vertical-align: super; }
+.ens-sep { color: var(--text2); margin: 0 4px; }
+.ens-mode-row { display: flex; gap: 8px; margin: 10px 0 6px; }
+.ens-mode-row .btn { flex: 1; font-size: 12px; padding: 8px 4px; }
+#ens-play-btn { width: 100%; margin-top: 4px; }
+#ens-now-note { font-size: 56px; font-weight: 700; color: var(--accent); line-height: 1; min-height: 64px; text-align: center; }
+#ens-role-display { font-size: 14px; color: var(--text2); text-align: center; min-height: 20px; margin: 2px 0 6px; }
+#ens-tuner { width: 100%; height: 52px; border-radius: 4px; margin: 4px 0 8px; display: block; }
+#ens-et-display { font-size: 14px; text-align: center; }
+#ens-ji-display { font-size: 22px; font-weight: 700; text-align: center; margin: 4px 0; min-height: 30px; }
+#ens-ji-hint { font-size: 12px; color: var(--text2); text-align: center; min-height: 18px; }
 </style>
 </head>
 <body>
@@ -148,6 +168,7 @@ tr:last-child td { border-bottom: none; }
   <div class="tab" data-tab="practice">練習</div>
   <div class="tab" data-tab="report">レポート</div>
   <div class="tab" data-tab="settings">設定</div>
+  <div class="tab" data-tab="ens">合奏</div>
 </div>
 
 <!-- 計測タブ -->
@@ -289,6 +310,36 @@ tr:last-child td { border-bottom: none; }
       このHTMLファイルを <strong>GitHub Pages</strong> で公開すると、SafariでもWeb Audio APIが動作します。<br>
       手順: GitHubリポジトリに push → Settings → Pages → main ブランチを選択
     </p>
+  </div>
+</div>
+
+<!-- 合奏タブ -->
+<div class="panel" id="panel-ens">
+  <div class="card">
+    <h2>コード選択</h2>
+    <div class="ens-root-grid" id="ens-root-grid"></div>
+    <div class="ens-type-row" id="ens-type-row"></div>
+    <div id="ens-chord-display">—</div>
+    <div class="ens-mode-row">
+      <button class="btn sel" id="btn-mode-full">コード全音再生</button>
+      <button class="btn" id="btn-mode-mute">自分の音を除く</button>
+    </div>
+    <button class="btn btn-primary" id="ens-play-btn">▶ コード再生</button>
+  </div>
+  <div class="card">
+    <h2>音程モニター</h2>
+    <div id="ens-now-note">—</div>
+    <div id="ens-role-display">—</div>
+    <canvas id="ens-tuner"></canvas>
+    <div id="ens-et-display">平均律偏差: — ¢</div>
+    <div id="ens-ji-display" style="color:var(--text2)">— ¢</div>
+    <div id="ens-ji-hint">純正調目標: — ¢</div>
+    <div style="font-size:11px;color:var(--text2);margin-top:8px">▼ オレンジの▼マーカーが純正調の目標位置。バーがマーカーに合えば純正調です。</div>
+  </div>
+  <div class="card">
+    <h2>純正調の傾向記録</h2>
+    <div id="ens-stats"><p class="text2 text-sm">コードを再生して音を吹くと記録されます。</p></div>
+    <button class="btn" id="ens-reset-btn" style="margin-top:12px;font-size:12px">リセット</button>
   </div>
 </div>
 
@@ -530,6 +581,8 @@ function detectLoop() {
       if (lastSoundTime !== null && now - lastSoundTime > SILENCE_END_MS) {
         finalizeNote();
         trackState = 'silent';
+        // 合奏モード: 除音していたオシレーターを復元
+        if (ensActive && ensMode === 'mute') restoreEnsOsc();
         // 練習モード: linger timer開始（まだ基準音は鳴らし続ける）
         if (pracActive && refPlaying && pracAutoTimer === null) {
           refLingering = true; // マイク処理を停止してフィードバック防止
@@ -637,9 +690,12 @@ function detectLoop() {
       drawTuner(pracCents, hz, 'prac-tuner');
       updatePracDisplay(pracCents, midiI);
     }
+    // 合奏モード: 純正調評価
+    if (ensActive) handleEnsDetection(midiF, midiI, hz);
   } else {
     updateNowDisplay(noteLabel(midiI) + '…', null);
     drawTuner(null, null, 'tuner-canvas');
+    if (ensActive) updateEnsDisplay(null, null, null, null);
   }
 
   updateRmsDisplay(rms);
@@ -1167,6 +1223,283 @@ document.getElementById('a4-slider').dispatchEvent(new Event('input'));
 document.getElementById('silence-slider').dispatchEvent(new Event('input'));
 document.getElementById('attack-slider').dispatchEvent(new Event('input'));
 document.getElementById('silend-slider').dispatchEvent(new Event('input'));
+
+// ============================================================
+// 合奏モード（純正調アンサンブル練習）
+// ============================================================
+const CHORD_DEFS = {
+  'M':    { name: 'メジャー',      ratios: [1, 5/4, 3/2],        roles: ['根音','第3音','第5音'] },
+  'm':    { name: 'マイナー',      ratios: [1, 6/5, 3/2],        roles: ['根音','第3音','第5音'] },
+  'M7':   { name: 'メジャー7th',   ratios: [1, 5/4, 3/2, 15/8], roles: ['根音','第3音','第5音','第7音'] },
+  '7':    { name: 'ドミナント7th', ratios: [1, 5/4, 3/2, 7/4],  roles: ['根音','第3音','第5音','♭7音'] },
+  'm7':   { name: 'マイナー7th',   ratios: [1, 6/5, 3/2, 9/5],  roles: ['根音','第3音','第5音','第7音'] },
+  'dim':  { name: 'ディミニッシュ', ratios: [1, 6/5, 64/45],     roles: ['根音','第3音','減5音'] },
+  'sus4': { name: 'サスペンデッド', ratios: [1, 4/3, 3/2],       roles: ['根音','第4音','第5音'] },
+};
+
+let ensActive    = false;
+let ensRootMidi  = 60;     // C4
+let ensChordType = 'M';
+let ensMode      = 'full'; // 'full' | 'mute'
+let ensOscs      = [];     // [{osc, g}]
+let ensMasterGain = null;
+let ensMutedIdx  = -1;
+let ensData      = {};     // role → {count, sumJI, jiArr}
+
+// UI構築
+(function buildEnsUI() {
+  const rootGrid = document.getElementById('ens-root-grid');
+  GERMAN.forEach((name, i) => {
+    const midi = 60 + i;
+    const btn = document.createElement('button');
+    btn.className = 'ens-btn' + (midi === ensRootMidi ? ' sel' : '');
+    btn.textContent = name;
+    btn.addEventListener('click', () => {
+      ensRootMidi = midi;
+      rootGrid.querySelectorAll('.ens-btn').forEach(b => b.classList.remove('sel'));
+      btn.classList.add('sel');
+      updateEnsChordDisplay();
+      if (ensActive) startChordOsc();
+    });
+    rootGrid.appendChild(btn);
+  });
+
+  const typeRow = document.getElementById('ens-type-row');
+  Object.entries(CHORD_DEFS).forEach(([key, def]) => {
+    const btn = document.createElement('button');
+    btn.className = 'ens-type-btn' + (key === ensChordType ? ' sel' : '');
+    btn.textContent = key;
+    btn.title = def.name;
+    btn.addEventListener('click', () => {
+      ensChordType = key;
+      typeRow.querySelectorAll('.ens-type-btn').forEach(b => b.classList.remove('sel'));
+      btn.classList.add('sel');
+      ensData = {};
+      updateEnsChordDisplay();
+      renderEnsStats();
+      if (ensActive) startChordOsc();
+    });
+    typeRow.appendChild(btn);
+  });
+  updateEnsChordDisplay();
+})();
+
+document.getElementById('ens-play-btn').addEventListener('click', () => {
+  if (!audioCtx) { alert('まずマイクを開始してください'); return; }
+  if (ensActive) stopChordOsc(true); else startChordOsc();
+});
+document.getElementById('btn-mode-full').addEventListener('click', () => {
+  ensMode = 'full';
+  document.getElementById('btn-mode-full').classList.add('sel');
+  document.getElementById('btn-mode-mute').classList.remove('sel');
+  restoreEnsOsc();
+});
+document.getElementById('btn-mode-mute').addEventListener('click', () => {
+  ensMode = 'mute';
+  document.getElementById('btn-mode-mute').classList.add('sel');
+  document.getElementById('btn-mode-full').classList.remove('sel');
+});
+document.getElementById('ens-reset-btn').addEventListener('click', () => {
+  ensData = {};
+  renderEnsStats();
+});
+
+function startChordOsc() {
+  stopChordOsc(false);
+  if (!audioCtx) return;
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  const def = CHORD_DEFS[ensChordType];
+  const rootHz = midiToHz(ensRootMidi);
+  ensMasterGain = audioCtx.createGain();
+  ensMasterGain.gain.value = 0;
+  const comp = audioCtx.createDynamicsCompressor();
+  comp.threshold.value = -18; comp.ratio.value = 12;
+  comp.attack.value = 0.003; comp.release.value = 0.1;
+  ensMasterGain.connect(comp);
+  comp.connect(audioCtx.destination);
+  ensOscs = def.ratios.map(ratio => {
+    const osc = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = rootHz * ratio;
+    g.gain.value = 0.35;
+    osc.connect(g); g.connect(ensMasterGain);
+    osc.start();
+    return { osc, g };
+  });
+  ensMasterGain.gain.setTargetAtTime(1.0, audioCtx.currentTime, 0.05);
+  ensActive = true; ensMutedIdx = -1;
+  const btn = document.getElementById('ens-play-btn');
+  btn.textContent = '■ 停止';
+  btn.classList.remove('btn-primary'); btn.classList.add('btn-danger');
+}
+
+function stopChordOsc(updateUI) {
+  if (ensMasterGain && audioCtx) {
+    ensMasterGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.1);
+  }
+  const oscs = ensOscs.slice();
+  setTimeout(() => oscs.forEach(({ osc }) => { try { osc.stop(); } catch(e){} }), 500);
+  ensOscs = []; ensMasterGain = null;
+  ensActive = false; ensMutedIdx = -1;
+  if (updateUI) {
+    const btn = document.getElementById('ens-play-btn');
+    btn.textContent = '▶ コード再生';
+    btn.classList.remove('btn-danger'); btn.classList.add('btn-primary');
+    updateEnsDisplay(null, null, null, null);
+  }
+}
+
+function updateEnsChordDisplay() {
+  const def = CHORD_DEFS[ensChordType];
+  const parts = def.ratios.map((ratio, i) => {
+    const jiC = 1200 * Math.log2(ratio);
+    const etC = Math.round(jiC / 100) * 100;
+    const off = jiC - etC;
+    const noteMidi = ensRootMidi + Math.round(etC / 100);
+    const name = GERMAN[noteMidi % 12];
+    const offStr = off === 0 ? '±0¢' : (off > 0 ? `+${Math.round(off)}¢` : `${Math.round(off)}¢`);
+    return `<span class="ens-tone-name">${name}<span class="ens-ji-label">${offStr}</span></span>`;
+  });
+  document.getElementById('ens-chord-display').innerHTML =
+    parts.join('<span class="ens-sep"> — </span>');
+}
+
+// detectLoopから呼ばれる（stable時のみ）
+function handleEnsDetection(midiF, midiI, hz) {
+  const def = CHORD_DEFS[ensChordType];
+  const etCentsArr = def.ratios.map(r => Math.round(1200 * Math.log2(r) / 100) * 100);
+  const jiCentsArr = def.ratios.map(r => 1200 * Math.log2(r));
+
+  // オクターブ正規化して最も近いコードトーンを特定
+  const centsFromRoot = (midiF - ensRootMidi) * 100;
+  const centsInOctave = ((centsFromRoot % 1200) + 1200) % 1200;
+  let closestIdx = 0, closestDiff = Infinity;
+  etCentsArr.forEach((ec, i) => {
+    const diff = Math.min(Math.abs(centsInOctave - ec), 1200 - Math.abs(centsInOctave - ec));
+    if (diff < closestDiff) { closestDiff = diff; closestIdx = i; }
+  });
+  if (closestDiff > 65) { updateEnsDisplay(null, null, null, null); restoreEnsOsc(); return; }
+
+  // プレイヤーのオクターブに対応するコードトーンMIDI
+  const chordEt = etCentsArr[closestIdx];
+  const octShift = Math.round((midiF - ensRootMidi - chordEt / 100) / 12) * 12;
+  const chordMidi = ensRootMidi + chordEt / 100 + octShift;
+  const etDev = (midiF - chordMidi) * 100;
+  const jiOff = jiCentsArr[closestIdx] - chordEt; // 純正調と平均律の差（例: M3なら -13.7¢）
+  const jiDev = etDev - jiOff;                     // 純正調目標からの偏差
+
+  const role = def.roles[closestIdx];
+  document.getElementById('ens-now-note').textContent = GERMAN[midiI % 12];
+
+  // 記録
+  if (!ensData[role]) ensData[role] = { count: 0, sumJI: 0, jiArr: [] };
+  ensData[role].count++;
+  ensData[role].sumJI += jiDev;
+  ensData[role].jiArr.push(jiDev);
+
+  // Mode B: 自分の音を除く
+  if (ensMode === 'mute') {
+    if (closestIdx !== ensMutedIdx) {
+      restoreEnsOsc(); ensMutedIdx = closestIdx;
+      if (ensOscs[closestIdx]) ensOscs[closestIdx].g.gain.setTargetAtTime(0, audioCtx.currentTime, 0.05);
+    }
+  }
+  updateEnsDisplay(role, etDev, jiDev, jiOff);
+  renderEnsStats();
+}
+
+function restoreEnsOsc() {
+  if (ensMutedIdx >= 0 && ensOscs[ensMutedIdx]) {
+    ensOscs[ensMutedIdx].g.gain.setTargetAtTime(0.35, audioCtx.currentTime, 0.1);
+  }
+  ensMutedIdx = -1;
+}
+
+function updateEnsDisplay(role, etDev, jiDev, jiOff) {
+  const s = v => (v >= 0 ? '+' : '') + v.toFixed(1);
+  const etEl = document.getElementById('ens-et-display');
+  const jiEl = document.getElementById('ens-ji-display');
+  const hintEl = document.getElementById('ens-ji-hint');
+  const roleEl = document.getElementById('ens-role-display');
+  if (etDev === null) {
+    if (etEl) etEl.textContent = '平均律偏差: — ¢';
+    if (jiEl) { jiEl.textContent = '— ¢'; jiEl.style.color = 'var(--text2)'; }
+    if (hintEl) hintEl.textContent = '純正調目標: — ¢';
+    if (roleEl) roleEl.textContent = '—';
+    drawEnsTuner(null, null);
+    return;
+  }
+  if (etEl) etEl.textContent = `平均律偏差: ${s(etDev)} ¢`;
+  if (jiEl) {
+    jiEl.textContent = `純正調偏差: ${s(jiDev)} ¢`;
+    jiEl.style.color = Math.abs(jiDev) < 5 ? '#3fb950' : Math.abs(jiDev) < 15 ? '#d29922' : '#f85149';
+  }
+  if (hintEl) hintEl.textContent = `（純正調目標: 平均律より ${s(jiOff)} ¢）`;
+  if (roleEl) roleEl.textContent = role;
+  drawEnsTuner(etDev, jiOff);
+}
+
+function drawEnsTuner(etCents, jiOff) {
+  const canvas = document.getElementById('ens-tuner');
+  if (!canvas) return;
+  const W = canvas.width = canvas.offsetWidth || 300;
+  const H = canvas.height = 52;
+  const c2 = canvas.getContext('2d');
+  const cx = W / 2, sc = (W - 40) / 100;
+  c2.clearRect(0, 0, W, H);
+  c2.fillStyle = '#0d1117'; c2.fillRect(0, 0, W, H);
+  for (let v = -50; v <= 50; v += 10) {
+    const x = cx + v * sc;
+    c2.strokeStyle = '#30363d'; c2.lineWidth = 1;
+    c2.beginPath(); c2.moveTo(x, H - 10); c2.lineTo(x, H); c2.stroke();
+    if (v !== 0) {
+      c2.fillStyle = '#555'; c2.font = '9px sans-serif'; c2.textAlign = 'center';
+      c2.fillText(v, x, H - 11);
+    }
+  }
+  c2.strokeStyle = '#444'; c2.lineWidth = 2;
+  c2.beginPath(); c2.moveTo(cx, 0); c2.lineTo(cx, H); c2.stroke();
+  if (etCents === null) return;
+  // 純正調目標マーカー（オレンジ▼）
+  const jx = Math.max(8, Math.min(W - 8, cx + jiOff * sc));
+  c2.fillStyle = '#f0883e';
+  c2.beginPath(); c2.moveTo(jx - 7, 0); c2.lineTo(jx + 7, 0); c2.lineTo(jx, 13); c2.closePath(); c2.fill();
+  // 平均律偏差バー
+  const bx = cx + etCents * sc;
+  c2.fillStyle = Math.abs(etCents - jiOff) < 5 ? '#3fb950' : Math.abs(etCents - jiOff) < 15 ? '#d29922' : '#f85149';
+  c2.fillRect(Math.min(cx, bx), 16, Math.abs(bx - cx) || 2, H - 26);
+  c2.strokeStyle = '#fff'; c2.lineWidth = 2;
+  c2.beginPath(); c2.moveTo(cx, 13); c2.lineTo(cx, H); c2.stroke();
+}
+
+function renderEnsStats() {
+  const el = document.getElementById('ens-stats');
+  if (!el) return;
+  const def = CHORD_DEFS[ensChordType];
+  if (!def.roles.some(r => ensData[r] && ensData[r].count > 0)) {
+    el.innerHTML = '<p class="text2 text-sm">コードを再生して音を吹くと記録されます。</p>';
+    return;
+  }
+  const s = v => (v >= 0 ? '+' : '') + v.toFixed(1);
+  let html = '<table style="width:100%;border-collapse:collapse;font-size:13px"><tr style="color:var(--text2);border-bottom:1px solid var(--border)"><th style="text-align:left;padding:5px 3px">パート</th><th style="padding:5px 3px">JI目標</th><th style="padding:5px 3px">平均偏差</th><th style="text-align:left;padding:5px 3px">傾向</th></tr>';
+  def.roles.forEach((role, i) => {
+    const d = ensData[role];
+    const jiC = 1200 * Math.log2(def.ratios[i]);
+    const etC = Math.round(jiC / 100) * 100;
+    const off = jiC - etC;
+    if (!d || d.count === 0) {
+      html += `<tr><td style="padding:5px 3px">${role}</td><td style="text-align:center;color:var(--text2)">${s(off)}¢</td><td colspan="2" style="color:var(--text2);text-align:center">—</td></tr>`;
+      return;
+    }
+    const avg = d.sumJI / d.count;
+    const col = Math.abs(avg) < 5 ? '#3fb950' : Math.abs(avg) < 15 ? '#d29922' : '#f85149';
+    const tend = Math.abs(avg) < 3 ? '✓ 正確' : avg > 0 ? `▲ 高め` : `▼ 低め`;
+    html += `<tr style="border-bottom:1px solid var(--border)"><td style="padding:5px 3px;font-weight:bold">${role}</td><td style="text-align:center;color:var(--text2)">${s(off)}¢</td><td style="text-align:center">${s(avg)}¢</td><td style="color:${col};padding:5px 3px">${tend}</td></tr>`;
+  });
+  html += `</table><div style="margin-top:6px;font-size:11px;color:var(--text2)">測定: ${Object.values(ensData).reduce((a,d)=>a+d.count,0)} フレーム</div>`;
+  el.innerHTML = html;
+}
 
 // ============================================================
 // Service Worker 登録（PWA・オフライン対応）
