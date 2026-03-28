@@ -320,8 +320,8 @@ tr:last-child td { border-bottom: none; }
         <strong>マイク感度</strong>
         <span>音として反応する最低音量。小さい=感度高い（反応しやすい）、大きい=感度低い（ノイズ無視）</span>
       </div>
-      <input type="range" id="silence-slider" min="1" max="30" value="2" step="1">
-      <span class="setting-val" id="silence-val">2</span>
+      <input type="range" id="silence-slider" min="0.1" max="30" value="2" step="0.1">
+      <span class="setting-val" id="silence-val">2.0</span>
     </div>
     <div class="setting-row">
       <div class="setting-label">
@@ -477,7 +477,7 @@ document.getElementById('attack-slider').addEventListener('input', function() {
 });
 document.getElementById('silence-slider').addEventListener('input', function() {
   SILENCE_THRESH = +this.value;
-  document.getElementById('silence-val').textContent = SILENCE_THRESH;
+  document.getElementById('silence-val').textContent = SILENCE_THRESH.toFixed(1);
 });
 document.getElementById('silend-slider').addEventListener('input', function() {
   SILENCE_END_MS = +this.value;
@@ -790,7 +790,7 @@ function updateRmsDisplay(rms) {
   const el = document.getElementById('rms-display');
   if (!el) return;
   const detecting = rms >= SILENCE_THRESH;
-  el.textContent = `マイク音量: ${rms.toFixed(2)} / 感度設定: ${SILENCE_THRESH.toFixed(0)}  ${detecting ? '→ 検出中' : '→ 無音'}`;
+  el.textContent = `マイク音量: ${rms.toFixed(2)} / 感度設定: ${SILENCE_THRESH.toFixed(1)}  ${detecting ? '→ 検出中' : '→ 無音'}`;
   el.style.color = detecting ? '#3fb950' : '#58a6ff';
 }
 
