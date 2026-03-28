@@ -426,7 +426,15 @@ document.getElementById('prac-start-btn').addEventListener('click', async () => 
   if (!isStarted) {
     // マイク未起動なら自動で開始
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          channelCount: 1,
+          echoCancellation: false,   // iOSのエコーキャンセルOFF
+          noiseSuppression: false,   // iOSのノイズ抑制OFF（これがトランペットを消している）
+          autoGainControl: false     // AGCをOFF（音量の自動変動を防ぐ）
+        },
+        video: false
+      });
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       analyser = audioCtx.createAnalyser();
       analyser.fftSize = FFT_SIZE;
