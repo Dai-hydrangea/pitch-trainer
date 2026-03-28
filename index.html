@@ -1251,6 +1251,7 @@ let ensOscs      = [];     // [{osc, g}]
 let ensMasterGain = null;
 let ensMutedIdx  = -1;
 let ensData      = {};     // role → {count, sumJI, jiArr}
+let ensSingleOsc = null, ensSingleGain = null, ensSingleToneIdx = -1;
 
 // UI構築
 (function buildEnsUI() {
@@ -1472,8 +1473,6 @@ function restoreEnsOsc() {
 }
 
 // 単音プレビュー再生
-let ensSingleOsc = null, ensSingleGain = null, ensSingleToneIdx = -1;
-
 function playEnsSingleNote(ratio, idx) {
   if (ensSingleToneIdx === idx) { stopEnsSingleNote(); return; } // 同じボタン→停止
   stopEnsSingleNote();
