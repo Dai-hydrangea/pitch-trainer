@@ -159,7 +159,7 @@ tr:last-child td { border-bottom: none; }
     <div id="now-cents">— ¢</div>
     <canvas id="tuner-canvas"></canvas>
     <div id="state-badge" class="silent">SILENT</div>
-    <div id="rms-display" style="font-size:11px;color:var(--text2);margin-top:6px;">音量レベル: —</div>
+    <div id="rms-display" style="font-size:13px;color:#58a6ff;margin-top:6px;font-family:monospace;">音量: —</div>
   </div>
   <!-- デバッググラフ -->
   <div class="card" id="graph-wrap">
@@ -548,7 +548,7 @@ function detectLoop() {
     drawTuner(null, null, 'tuner-canvas');
     drawTuner(null, null, 'prac-tuner');
     updateNowDisplay(null, null);
-    document.getElementById('rms-display').textContent = `音量レベル: ${rms.toFixed(3)} (閾値: ${(SILENCE_THRESH/100).toFixed(3)})`;
+    updateRmsDisplay(rms);
     graphPoints.push({ t: now, hz: null, state: trackState });
     trimGraph(now);
     drawGraph();
@@ -639,6 +639,7 @@ function detectLoop() {
     drawTuner(null, null, 'tuner-canvas');
   }
 
+  updateRmsDisplay(rms);
   setStateBadge(trackState);
 
   graphPoints.push({ t: now, hz: hz, state: trackState });
@@ -650,6 +651,12 @@ function calcRMS(buf) {
   let sum = 0;
   for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
   return Math.sqrt(sum / buf.length) * 100;
+}
+
+function updateRmsDisplay(rms) {
+  const el = document.getElementById('rms-display');
+  if (!el) return;
+  el.textContent = `音量: ${rms.toFixed(2)}  閾値: ${SILENCE_THRESH.toFixed(1)}`;
 }
 
 function autocorrelate(buf, sampleRate) {
