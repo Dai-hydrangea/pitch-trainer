@@ -24,21 +24,21 @@ h1 { font-size: 20px; font-weight: 600; }
 h2 { font-size: 16px; font-weight: 600; color: var(--accent); margin-bottom: 8px; }
 h3 { font-size: 13px; font-weight: 600; color: var(--text2); margin-bottom: 6px; }
 
-/* Header */
-#header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 12px 20px; display: flex; align-items: center; gap: 16px; }
-#header h1 { flex: 1; }
-#a4-ctrl { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text2); }
-#a4-ctrl input { width: 140px; accent-color: var(--accent); }
-#a4-val { color: var(--accent); font-weight: 600; min-width: 48px; }
+/* Header — sticky so Start/Stop is always accessible */
+#header { position: sticky; top: 0; z-index: 100; background: var(--surface); border-bottom: 1px solid var(--border); padding: 10px 16px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+#header h1 { flex: 1; font-size: 16px; }
+#a4-ctrl { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text2); }
+#a4-ctrl input { width: 100px; accent-color: var(--accent); }
+#a4-val { color: var(--accent); font-weight: 600; min-width: 44px; }
 
-/* Tabs */
-#tabs { display: flex; background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 20px; }
-.tab { padding: 10px 18px; cursor: pointer; border-bottom: 2px solid transparent; color: var(--text2); font-size: 13px; font-weight: 500; transition: all .15s; }
+/* Tabs — sticky below header */
+#tabs { position: sticky; top: 49px; z-index: 99; display: flex; background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 12px; overflow-x: auto; }
+.tab { padding: 10px 14px; cursor: pointer; border-bottom: 2px solid transparent; color: var(--text2); font-size: 13px; font-weight: 500; transition: all .15s; white-space: nowrap; }
 .tab:hover { color: var(--text); }
 .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
 
 /* Panels */
-.panel { display: none; padding: 20px; max-width: 1000px; margin: 0 auto; }
+.panel { display: none; padding: 12px 16px; max-width: 700px; margin: 0 auto; }
 .panel.active { display: block; }
 
 /* Buttons */
@@ -54,7 +54,6 @@ h3 { font-size: 13px; font-weight: 600; color: var(--text2); margin-bottom: 6px;
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 16px; }
 
 /* ===== 計測タブ ===== */
-#measure-top { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
 #now-display { text-align: center; }
 #now-note { font-size: 72px; font-weight: 700; color: var(--accent); line-height: 1; min-height: 80px; }
 #now-cents { font-size: 28px; font-weight: 600; margin-top: 4px; min-height: 36px; }
@@ -69,7 +68,7 @@ h3 { font-size: 13px; font-weight: 600; color: var(--text2); margin-bottom: 6px;
 #state-badge.stable { background: #1a4a1a; color: var(--accent2); }
 
 /* Note table */
-#note-table-wrap { overflow-y: auto; max-height: 320px; }
+#note-table-wrap { overflow-y: auto; max-height: 280px; }
 table { width: 100%; border-collapse: collapse; }
 th { position: sticky; top: 0; background: var(--surface2); padding: 6px 10px; text-align: left; font-size: 12px; color: var(--text2); border-bottom: 1px solid var(--border); }
 td { padding: 5px 10px; border-bottom: 1px solid var(--border); font-size: 13px; }
@@ -138,38 +137,39 @@ tr:last-child td { border-bottom: none; }
 
 <!-- 計測タブ -->
 <div class="panel active" id="panel-measure">
-  <div id="measure-top">
-    <div class="card" id="now-display">
-      <h2>現在の音</h2>
-      <div id="now-note">—</div>
-      <div id="now-cents">— ¢</div>
-      <canvas id="tuner-canvas"></canvas>
-      <div id="state-badge" class="silent">SILENT</div>
-    </div>
-    <div class="card">
-      <div class="flex mb12">
-        <h2 style="margin:0">音程別記録</h2>
-        <button class="btn btn-outline ml-auto" id="measure-reset-btn" style="font-size:12px">リセット</button>
-      </div>
-      <div id="note-table-wrap">
-        <table id="note-table">
-          <thead><tr>
-            <th>音名</th>
-            <th>回数</th>
-            <th>平均偏差</th>
-            <th>分布</th>
-          </tr></thead>
-          <tbody id="note-tbody"></tbody>
-        </table>
-      </div>
-    </div>
+  <!-- 現在の音 -->
+  <div class="card" id="now-display">
+    <h2>現在の音</h2>
+    <div id="now-note">—</div>
+    <div id="now-cents">— ¢</div>
+    <canvas id="tuner-canvas"></canvas>
+    <div id="state-badge" class="silent">SILENT</div>
   </div>
+  <!-- デバッググラフ -->
   <div class="card" id="graph-wrap">
     <div class="flex mb12">
-      <h2 style="margin:0">デバッググラフ — 時間 vs 音程</h2>
+      <h2 style="margin:0">デバッググラフ</h2>
       <button class="btn btn-outline ml-auto" id="graph-toggle" style="font-size:12px">非表示</button>
     </div>
     <canvas id="graph-canvas"></canvas>
+  </div>
+  <!-- 音程別記録 -->
+  <div class="card">
+    <div class="flex mb12">
+      <h2 style="margin:0">音程別記録</h2>
+      <button class="btn btn-outline ml-auto" id="measure-reset-btn" style="font-size:12px">リセット</button>
+    </div>
+    <div id="note-table-wrap">
+      <table id="note-table">
+        <thead><tr>
+          <th>音名</th>
+          <th>回数</th>
+          <th>平均偏差</th>
+          <th>分布</th>
+        </tr></thead>
+        <tbody id="note-tbody"></tbody>
+      </table>
+    </div>
   </div>
 </div>
 
@@ -194,7 +194,10 @@ tr:last-child td { border-bottom: none; }
         ② 楽器で任意の音を吹く<br>
         ③ アタック後（150ms）に音程を自動検出し、基準音（サイン波）が鳴る<br>
         ④ 基準音と自分の音を聴き比べて偏差を確認<br>
-        ⑤ 吹き終わると基準音が2秒間鳴り続け、余韻で確認できる
+        ⑤ 吹き終わると基準音が1.5秒間鳴り続け、余韻で確認できる
+      </p>
+      <p style="margin-top:10px; padding:8px 12px; background:#2d1f00; border:1px solid #d29922; border-radius:6px; font-size:12px; color:#d29922; line-height:1.6">
+        ⚠️ <strong>イヤホン推奨</strong>：スピーカー使用時はマイクが基準音を拾い誤検出することがあります。イヤホンを使うと正確に動作します。
       </p>
     </div>
   </div>
@@ -324,8 +327,10 @@ let gainNode = null;
 let pracMidi = null;       // 現在基準音として鳴らしているMIDI
 let pracActive = false;    // 練習モードON/OFF
 let refPlaying = false;    // 基準音が出力中か
+let refLingering = false;  // リンガー中（スピーカーフィードバック防止のためマイク処理を止める）
 let pracAutoTimer = null;  // 無音後のlinger timer
-const REF_LINGER_MS = 2000; // 吹き終わり後に基準音を鳴らし続ける時間
+const REF_LINGER_MS = 1500; // 吹き終わり後に基準音を鳴らし続ける時間
+const LINGER_BLOW_MULT = 5; // リンガー中に楽器と判断するRMS倍率（スピーカー音より大きい音）
 
 // ピッチ検出バッファ
 const FFT_SIZE = 4096;
@@ -468,6 +473,24 @@ function detectLoop() {
   const rms = calcRMS(buf);
   const now = Date.now();
 
+  // リンガー中はスピーカー→マイクのフィードバックを防ぐためマイク処理をスキップ。
+  // ただし楽器を吹いた（スピーカーより大幅に大きい音）場合は即座に再開。
+  if (refLingering) {
+    if (rms > SILENCE_THRESH / 100 * LINGER_BLOW_MULT) {
+      // 楽器が鳴り始めた → リンガーキャンセル
+      refLingering = false;
+      if (pracAutoTimer !== null) { clearTimeout(pracAutoTimer); pracAutoTimer = null; }
+      fadeOutRef();
+      // 以降は通常処理へ fall through
+    } else {
+      // まだリンガー中 → マイク処理スキップ
+      graphPoints.push({ t: now, hz: null, state: 'silent' });
+      trimGraph(now);
+      drawGraph();
+      return;
+    }
+  }
+
   if (rms < SILENCE_THRESH / 100) {
     // 無音
     if (trackState === 'stable') {
@@ -476,8 +499,10 @@ function detectLoop() {
         trackState = 'silent';
         // 練習モード: linger timer開始（まだ基準音は鳴らし続ける）
         if (pracActive && refPlaying && pracAutoTimer === null) {
+          refLingering = true; // マイク処理を停止してフィードバック防止
           pracAutoTimer = setTimeout(() => {
             fadeOutRef();
+            refLingering = false;
             pracAutoTimer = null;
           }, REF_LINGER_MS);
           document.getElementById('ref-status').textContent = `基準音確認中（${REF_LINGER_MS/1000}秒後に停止）`;
@@ -838,6 +863,7 @@ function drawGraph() {
 // ============================================================
 function startRefTone(midi) {
   if (!audioCtx) return;
+  if (audioCtx.state === 'suspended') audioCtx.resume();
 
   if (!oscNode) {
     // 初回 or 停止後: オシレーター新規作成
@@ -869,6 +895,7 @@ function fadeOutRef() {
   gainNode.gain.cancelScheduledValues(audioCtx.currentTime);
   gainNode.gain.setTargetAtTime(0, audioCtx.currentTime, 0.3);
   refPlaying = false;
+  refLingering = false;
   document.getElementById('ref-status').textContent = '次の音を吹いてください';
 }
 
@@ -879,6 +906,7 @@ function stopPractice() {
   pracActive = false;
   pracMidi = null;
   refPlaying = false;
+  refLingering = false;
   document.getElementById('prac-start-btn').disabled = false;
   document.getElementById('ref-status').textContent = '—';
   document.getElementById('prac-note-big').textContent = '—';
@@ -1027,6 +1055,21 @@ window.addEventListener('resize', () => { drawGraph(); });
 
 // A4スライダーイベントを初期化時に発火
 document.getElementById('a4-slider').dispatchEvent(new Event('input'));
+
+// ============================================================
+// iOS AudioContext 自動サスペンド対策
+// ============================================================
+// iOSはアプリが背景に回るとAudioContextを停止する。
+// 画面復帰時またはタッチ操作時に自動で再開する。
+function resumeAudioCtx() {
+  if (audioCtx && audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+}
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) resumeAudioCtx();
+});
+document.addEventListener('touchstart', resumeAudioCtx, { passive: true });
 </script>
 </body>
 </html>
