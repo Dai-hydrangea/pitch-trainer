@@ -1321,33 +1321,50 @@ document.getElementById('ens-reset-btn').addEventListener('click', () => {
 });
 
 function startChordOsc() {
+  if (!audioCtx) return;
   stopEnsSingleNote();
-  stopChordOsc(false);
+
+  // 古いオシレーターをフェードアウトして停止
+  const oldOscs = ensOscs.splice(0);
+  if (ensMasterGain) {
+    try { ensMasterGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.1); } catch(e) {}
+    const og = ensMasterGain; ensMasterGain = null;
+    setTimeout(() => { oldOscs.forEach(({osc}) => { try{osc.stop();}catch(e){} }); }, 400);
+  }
+  ensMutedIdx = -1;
+
   const def = CHORD_DEFS[ensChordType];
   const rootHz = midiToHz(ensRootMidi);
-  ensMasterGain = audioCtx.createGain();
-  ensMasterGain.gain.value = 0;
-  const comp = audioCtx.createDynamicsCompressor();
-  comp.threshold.value = -18; comp.ratio.value = 12;
-  comp.attack.value = 0.003; comp.release.value = 0.1;
-  ensMasterGain.connect(comp);
-  comp.connect(audioCtx.destination);
-  const voiceGain = 0.9 / def.ratios.length; // 音数で割って合計を0.9に抑える
-  ensOscs = def.ratios.map(ratio => {
-    const osc = audioCtx.createOscillator();
-    const g = audioCtx.createGain();
-    osc.type = 'sine';
-    osc.frequency.value = rootHz * ratio;
-    g.gain.value = voiceGain;
-    osc.connect(g); g.connect(ensMasterGain);
-    osc.start();
-    return { osc, g };
-  });
-  ensMasterGain.gain.setTargetAtTime(1.0, audioCtx.currentTime, 0.05);
-  ensActive = true; ensMutedIdx = -1;
-  const btn = document.getElementById('ens-play-btn');
-  btn.textContent = '■ 停止';
-  btn.classList.remove('btn-primary'); btn.classList.add('btn-danger');
+  const voiceGain = 0.9 / def.ratios.length;
+
+  try {
+    const masterGain = audioCtx.createGain();
+    masterGain.gain.value = 0.85; // 直接セット（setTargetAtTimeの初期値問題を回避）
+    const comp = audioCtx.createDynamicsCompressor();
+    comp.threshold.value = -18; comp.ratio.value = 12;
+    comp.attack.value = 0.003; comp.release.value = 0.1;
+    masterGain.connect(comp);
+    comp.connect(audioCtx.destination);
+
+    ensOscs = def.ratios.map(ratio => {
+      const osc = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = rootHz * ratio;
+      g.gain.value = voiceGain;
+      osc.connect(g); g.connect(masterGain);
+      osc.start();
+      return { osc, g };
+    });
+
+    ensMasterGain = masterGain;
+    ensActive = true;
+    const btn = document.getElementById('ens-play-btn');
+    btn.textContent = '■ 停止';
+    btn.classList.remove('btn-primary'); btn.classList.add('btn-danger');
+  } catch(e) {
+    console.error('startChordOsc:', e);
+  }
 }
 
 function stopChordOsc(updateUI) {
