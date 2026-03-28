@@ -353,7 +353,7 @@ tr:last-child td { border-bottom: none; }
 // 定数・設定
 // ============================================================
 const GERMAN = ['C','Cis','D','Es','E','F','Fis','G','As','A','B','H'];
-const MIDI_MIN = 52; // E3
+const MIDI_MIN = 40; // E2 (低声域・管楽器低音対応)
 const MIDI_MAX = 84; // C6
 
 // A4=440のときの各MIDIノートのHz（実行時A4設定で再計算）
@@ -970,7 +970,7 @@ function drawGraph() {
   const tMin = now - GRAPH_WINDOW;
   const tMax = now;
 
-  // Y軸: MIDIノート (E3=52 ~ C6=84)
+  // Y軸: MIDIノート (E2=40 ~ C6=84)
   const hzMin = midiToHz(MIDI_MIN - 2);
   const hzMax = midiToHz(MIDI_MAX + 2);
 
@@ -1192,7 +1192,7 @@ function drawReportChart(rows) {
   ctx.fillStyle = '#e6edf3';
   ctx.font = '11px sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText('全音域ピッチ偏差マップ — ドイツ音名 (E3〜C6)', W / 2, margin.t - 4);
+  ctx.fillText('全音域ピッチ偏差マップ — ドイツ音名 (E2〜C6)', W / 2, margin.t - 4);
 }
 
 // ============================================================
