@@ -221,6 +221,7 @@ tr:last-child td { border-bottom: none; }
           <th>音名</th>
           <th>回数</th>
           <th>平均偏差</th>
+          <th title="平均偏差が±1¢以内だった回数">命中🎯</th>
           <th>分布</th>
         </tr></thead>
         <tbody id="note-tbody"></tbody>
@@ -384,7 +385,7 @@ for (let m = MIDI_MAX; m >= MIDI_MIN; m--) {
 // noteData[midiInt] = { count, sumCents, centsArr }
 const noteData = {};
 for (let m = MIDI_MIN; m <= MIDI_MAX; m++) {
-  noteData[m] = { count: 0, sumCents: 0, centsArr: [] };
+  noteData[m] = { count: 0, sumCents: 0, centsArr: [], hitCount: 0 };
 }
 
 // ============================================================
@@ -492,7 +493,7 @@ document.getElementById('graph-toggle').addEventListener('click', function() {
 function resetAllData() {
   if (!confirm('全記録をリセットしますか？')) return;
   for (let m = MIDI_MIN; m <= MIDI_MAX; m++) {
-    noteData[m] = { count: 0, sumCents: 0, centsArr: [] };
+    noteData[m] = { count: 0, sumCents: 0, centsArr: [], hitCount: 0 };
   }
   renderNoteTable();
   renderReport();
@@ -659,9 +660,11 @@ function detectLoop() {
       return;
     }
   } else {
-    // オクターブエラー補正: 直前値の約2倍なら1オクターブ高すぎる可能性
-    if (lastValidHz !== null && hz > lastValidHz * 1.8 && hz < lastValidHz * 2.2) {
-      hz = hz / 2;
+    if (lastValidHz !== null) {
+      // 直前値の約2倍 → 1オクターブ高すぎる → 下げる
+      if (hz > lastValidHz * 1.8 && hz < lastValidHz * 2.2) hz = hz / 2;
+      // 直前値の約半分 → 1オクターブ低すぎる → 上げる (B♭等の安定化)
+      else if (hz < lastValidHz * 0.6 && hz * 2 > lastValidHz * 0.8 && hz * 2 < lastValidHz * 1.2) hz = hz * 2;
     }
     lastValidHz = hz;
     lastValidHzTime = now;
@@ -866,6 +869,7 @@ function finalizeNote() {
   noteData[currentMidi].count++;
   noteData[currentMidi].sumCents += avg;
   noteData[currentMidi].centsArr.push(avg);
+  if (Math.abs(avg) < 1) noteData[currentMidi].hitCount++;
   currentCentsArr = [];
   renderNoteTable();
 }
@@ -982,10 +986,13 @@ function renderNoteTable() {
     const sign = r.avg >= 0 ? '+' : '';
     const color = Math.abs(r.avg) < 10 ? '#3fb950' : r.avg > 0 ? '#f85149' : '#79c0ff';
     const barW = Math.round(r.count / maxCnt * 80);
+    const hit = noteData[r.midi].hitCount || 0;
+    const hitStyle = hit > 0 ? 'color:#3fb950;font-weight:700' : 'color:var(--text2)';
     return `<tr>
       <td style="font-weight:600">${noteLabel(r.midi)}</td>
       <td>${r.count}</td>
       <td style="color:${color}">${sign}${avg} ¢</td>
+      <td style="${hitStyle}">${hit > 0 ? '🎯'.repeat(Math.min(hit, 5)) + (hit > 5 ? ` ${hit}` : '') : '—'}</td>
       <td><div class="note-bar"><div class="note-bar-fill" style="width:${barW}px;background:${color};left:0"></div></div></td>
     </tr>`;
   }).join('');
@@ -1566,16 +1573,22 @@ function updateEnsDisplay(role, etDev, jiDev, jiOff) {
     if (jiEl) { jiEl.textContent = '— ¢'; jiEl.style.color = 'var(--text2)'; }
     if (hintEl) hintEl.textContent = '純正調目標: — ¢';
     if (roleEl) roleEl.textContent = '—';
+    const noteEl2 = document.getElementById('ens-now-note');
+    if (noteEl2) noteEl2.style.color = 'var(--accent)';
     drawEnsTuner(null, null);
     return;
   }
   if (etEl) etEl.textContent = `平均律偏差: ${s(etDev)} ¢`;
+  const jiInTune = Math.abs(jiDev) < 5;
   if (jiEl) {
     jiEl.textContent = `純正調偏差: ${s(jiDev)} ¢`;
-    jiEl.style.color = Math.abs(jiDev) < 5 ? '#3fb950' : Math.abs(jiDev) < 15 ? '#d29922' : '#f85149';
+    jiEl.style.color = jiInTune ? '#3fb950' : Math.abs(jiDev) < 15 ? '#d29922' : '#f85149';
   }
   if (hintEl) hintEl.textContent = `（純正調目標: 平均律より ${s(jiOff)} ¢）`;
   if (roleEl) roleEl.textContent = role;
+  // 音名: ピッタリ合うと緑に光る
+  const noteEl = document.getElementById('ens-now-note');
+  if (noteEl) noteEl.style.color = jiInTune ? '#3fb950' : 'var(--accent)';
   drawEnsTuner(etDev, jiOff);
 }
 
@@ -1606,9 +1619,12 @@ function drawEnsTuner(etCents, jiOff) {
   c2.beginPath(); c2.moveTo(jx - 7, 0); c2.lineTo(jx + 7, 0); c2.lineTo(jx, 13); c2.closePath(); c2.fill();
   // 平均律偏差バー
   const bx = cx + etCents * sc;
-  c2.fillStyle = Math.abs(etCents - jiOff) < 5 ? '#3fb950' : Math.abs(etCents - jiOff) < 15 ? '#d29922' : '#f85149';
+  const inTune = Math.abs(etCents - jiOff) < 5;
+  c2.fillStyle = inTune ? '#3fb950' : Math.abs(etCents - jiOff) < 15 ? '#d29922' : '#f85149';
   c2.fillRect(Math.min(cx, bx), 16, Math.abs(bx - cx) || 2, H - 26);
-  c2.strokeStyle = '#fff'; c2.lineWidth = 2;
+  // 中央線: ピッタリ合っているとき緑に光る
+  c2.strokeStyle = inTune ? '#3fb950' : '#fff';
+  c2.lineWidth = inTune ? 3 : 2;
   c2.beginPath(); c2.moveTo(cx, 13); c2.lineTo(cx, H); c2.stroke();
 }
 
