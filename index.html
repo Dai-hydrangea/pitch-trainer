@@ -2,8 +2,17 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>音程練習アプリ</title>
+
+<!-- PWA -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#161b22">
+<!-- iOS ホーム画面追加対応 -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="音程練習">
+<link rel="apple-touch-icon" href="icon.svg">
 <style>
 :root {
   --bg: #0d1117;
@@ -19,7 +28,13 @@
   --radius: 8px;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px; min-height: 100vh; }
+body {
+  background: var(--bg); color: var(--text);
+  font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px; min-height: 100vh;
+  /* iPhoneのノッチ・ホームバー対応 */
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
 h1 { font-size: 20px; font-weight: 600; }
 h2 { font-size: 16px; font-weight: 600; color: var(--accent); margin-bottom: 8px; }
 h3 { font-size: 13px; font-weight: 600; color: var(--text2); margin-bottom: 6px; }
@@ -629,15 +644,20 @@ function calcRMS(buf) {
 
 function autocorrelate(buf, sampleRate) {
   const N = buf.length;
+  const halfN = Math.floor(N / 2);
+
   // RMS check
   let rms = 0;
   for (let i = 0; i < N; i++) rms += buf[i] * buf[i];
   rms = Math.sqrt(rms / N);
-  if (rms < 0.005) return null; // 緩和: iPhoneのAGCで音量が下がっても検出できるよう
+  if (rms < 0.005) return null;
 
   // 自己相関
-  const corr = new Float32Array(N);
-  for (let lag = 0; lag < N / 2; lag++) {
+  // 検索上限: 80Hz以上（lag < sampleRate/80）まで拡大して
+  // オクターブ誤検出をキャッチできるようにする
+  const lagMax = Math.min(halfN - 1, Math.floor(sampleRate / 80));
+  const corr = new Float32Array(lagMax + 1);
+  for (let lag = 0; lag <= lagMax; lag++) {
     let s = 0;
     for (let i = 0; i < N - lag; i++) s += buf[i] * buf[i + lag];
     corr[lag] = s;
@@ -645,30 +665,54 @@ function autocorrelate(buf, sampleRate) {
 
   // 最初の極小点を探す
   let d = 0;
-  while (d < N / 2 - 1 && corr[d] > corr[d + 1]) d++;
+  while (d < lagMax - 1 && corr[d] > corr[d + 1]) d++;
+
   // 極大点を探す
   let maxVal = -1, maxI = d;
-  for (let i = d; i < N / 2; i++) {
+  for (let i = d; i <= lagMax; i++) {
     if (corr[i] > maxVal) { maxVal = corr[i]; maxI = i; }
   }
-  // 正規化して信頼性チェック
+
   if (corr[0] === 0) return null;
   const confidence = maxVal / corr[0];
-  if (confidence < 0.38) return null; // 緩和: 0.5→0.38（管楽器の倍音構造に対応）
+  if (confidence < 0.38) return null;
 
-  // 放物線補間
-  let freq;
-  if (maxI > 0 && maxI < N / 2 - 1) {
+  // 放物線補間でlag精度向上
+  let bestLag = maxI;
+  if (maxI > 0 && maxI < lagMax) {
     const y0 = corr[maxI - 1], y1 = corr[maxI], y2 = corr[maxI + 1];
-    const d2 = y0 - 2 * y1 + y2;
-    const delta = Math.abs(d2) < 1e-10 ? 0 : 0.5 * (y0 - y2) / d2;
-    freq = sampleRate / (maxI + delta);
-  } else {
-    freq = sampleRate / maxI;
+    const denom = y0 - 2 * y1 + y2;
+    if (Math.abs(denom) > 1e-10) bestLag = maxI + 0.5 * (y0 - y2) / denom;
+  }
+  let freq = sampleRate / bestLag;
+
+  // ===== サブハーモニックチェック（ブラス楽器の倍音問題対策）=====
+  // 検出ラグの2倍（＝1オクターブ下）に有力ピークがあれば基音はそちら。
+  // トランペットは第2倍音が基音より強いことが多く、誤って1オクターブ上を
+  // 検出するケースへの対策。
+  const subLagI = maxI * 2;
+  if (subLagI <= lagMax) {
+    const subConf = corr[subLagI] / corr[0];
+    if (subConf > confidence * 0.6) {
+      // 1オクターブ下のラグも放物線補間
+      let subLag = subLagI;
+      if (subLagI > 0 && subLagI < lagMax) {
+        const y0 = corr[subLagI - 1], y1 = corr[subLagI], y2 = corr[subLagI + 1];
+        const denom = y0 - 2 * y1 + y2;
+        if (Math.abs(denom) > 1e-10) subLag = subLagI + 0.5 * (y0 - y2) / denom;
+      }
+      freq = sampleRate / subLag;
+    }
   }
 
-  // 楽器音域フィルタ (E3=164Hz ~ C6=1047Hz に少し余裕)
-  if (freq < 150 || freq > 1100) return null;
+  // オクターブ自動補正: 範囲外なら1オクターブシフトして救済
+  // 高すぎる（倍音を基音と誤検出）→ 1オクターブ下げる
+  if (freq > 1100 && freq / 2 >= 130) freq /= 2;
+  // 低すぎる（サブハーモニック誤検出）→ 1オクターブ上げる
+  if (freq < 130 && freq * 2 <= 1150) freq *= 2;
+
+  // 最終レンジチェック
+  if (freq < 130 || freq > 1150) return null;
   return freq;
 }
 
@@ -1078,6 +1122,16 @@ window.addEventListener('resize', () => { drawGraph(); });
 
 // A4スライダーイベントを初期化時に発火
 document.getElementById('a4-slider').dispatchEvent(new Event('input'));
+
+// ============================================================
+// Service Worker 登録（PWA・オフライン対応）
+// ============================================================
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js')
+      .catch(e => console.warn('SW登録失敗:', e));
+  });
+}
 
 // ============================================================
 // iOS AudioContext 自動サスペンド対策
