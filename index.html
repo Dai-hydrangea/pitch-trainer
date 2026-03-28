@@ -272,6 +272,25 @@ tr:last-child td { border-bottom: none; }
 <!-- 設定タブ -->
 <div class="panel" id="panel-settings">
   <div class="card">
+    <h2>楽器設定</h2>
+    <div class="setting-row">
+      <div class="setting-label">
+        <strong>楽器プリセット</strong>
+        <span>音程検出の周波数範囲を楽器に合わせて調整します</span>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;" id="instrument-btns">
+        <button class="btn sel" data-min="80"  data-max="3000">自動</button>
+        <button class="btn"     data-min="150" data-max="1000">トランペット</button>
+        <button class="btn"     data-min="55"  data-max="700" >トロンボーン</button>
+        <button class="btn"     data-min="55"  data-max="900" >ホルン</button>
+        <button class="btn"     data-min="80"  data-max="1500">声・フルート</button>
+      </div>
+    </div>
+    <div class="setting-row" style="font-size:12px;color:var(--text2)">
+      <span>検出範囲: <span id="pitch-range-label">80 〜 3000 Hz</span></span>
+    </div>
+  </div>
+  <div class="card">
     <h2>検出設定</h2>
     <div class="setting-row">
       <div class="setting-label">
@@ -423,6 +442,8 @@ let ATTACK_MS = 150;
 let SILENCE_THRESH = 2; // 感度高め（機種差対応）。設定スライダーで変更可
 let smoothedRms = 0; // EMAスムージング済みRMS
 let SILENCE_END_MS = 120;
+let PITCH_MIN_HZ = 80;        // 検出周波数下限（楽器プリセットで変更）
+let PITCH_MAX_HZ = 3000;      // 検出周波数上限
 let smoothedDispCents = null; // 表示用セント値のEMAスムージング
 let lastDisplayTime = 0;      // 表示更新レート制御（チカチカ防止）
 const DISPLAY_INTERVAL = 120; // ms: 表示更新間隔
@@ -449,6 +470,16 @@ document.querySelectorAll('.tab').forEach(tab => {
     document.getElementById('panel-' + tab.dataset.tab).classList.add('active');
     if (tab.dataset.tab === 'report') renderReport();
   });
+});
+
+document.getElementById('instrument-btns').addEventListener('click', function(e) {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  PITCH_MIN_HZ = +btn.dataset.min;
+  PITCH_MAX_HZ = +btn.dataset.max;
+  this.querySelectorAll('button').forEach(b => b.classList.remove('sel'));
+  btn.classList.add('sel');
+  document.getElementById('pitch-range-label').textContent = PITCH_MIN_HZ + ' 〜 ' + PITCH_MAX_HZ + ' Hz';
 });
 
 document.getElementById('attack-slider').addEventListener('input', function() {
@@ -784,9 +815,9 @@ function autocorrelate(buf, sampleRate) {
     cmndf[tau] = cumSum > 0 ? (diff[tau] * tau) / cumSum : 1;
   }
 
-  // Step3: 検出レンジ (80Hz〜3000Hz: 口笛・男性低音も対応)
-  const tauMin = Math.max(2, Math.floor(sampleRate / 3000));
-  const tauMax = Math.min(W - 2, Math.floor(sampleRate / 80));
+  // Step3: 検出レンジ (楽器プリセットで変更可)
+  const tauMin = Math.max(2, Math.floor(sampleRate / PITCH_MAX_HZ));
+  const tauMax = Math.min(W - 2, Math.floor(sampleRate / PITCH_MIN_HZ));
 
   // Step4: 閾値以下の最初の谷を探す（基音周期）
   const THRESH = 0.15; // 0に近いほど強い周期性、0.15は十分緩い
@@ -830,10 +861,10 @@ function autocorrelate(buf, sampleRate) {
   let freq = sampleRate / lag;
 
   // オクターブ補正（範囲外の場合にシフト）
-  if (freq > 3000 && freq / 2 >= 80) freq /= 2;
-  if (freq < 80 && freq * 2 <= 3000) freq *= 2;
+  if (freq > PITCH_MAX_HZ && freq / 2 >= PITCH_MIN_HZ) freq /= 2;
+  if (freq < PITCH_MIN_HZ && freq * 2 <= PITCH_MAX_HZ) freq *= 2;
 
-  if (freq < 80 || freq > 3000) return null;
+  if (freq < PITCH_MIN_HZ || freq > PITCH_MAX_HZ) return null;
   return freq;
 }
 
