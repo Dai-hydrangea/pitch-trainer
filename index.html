@@ -354,7 +354,7 @@ const DETECT_INTERVAL = 50; // ms
 // ピッチホールド（nullフレームを補間するための直前有効値）
 let lastValidHz = null;
 let lastValidHzTime = 0;
-const PITCH_HOLD_MS = 80; // この時間内のnullは直前値で補う
+const PITCH_HOLD_MS = 250; // アタック時間(150ms)より長く設定して確実にstableへ
 
 // 状態機械
 let trackState = 'silent'; // 'silent' | 'attack' | 'stable'
@@ -652,12 +652,9 @@ function autocorrelate(buf, sampleRate) {
   rms = Math.sqrt(rms / N);
   if (rms < 0.005) return null;
 
-  // 自己相関
-  // 検索上限: 80Hz以上（lag < sampleRate/80）まで拡大して
-  // オクターブ誤検出をキャッチできるようにする
-  const lagMax = Math.min(halfN - 1, Math.floor(sampleRate / 80));
-  const corr = new Float32Array(lagMax + 1);
-  for (let lag = 0; lag <= lagMax; lag++) {
+  // 自己相関（フル範囲: N/2まで）
+  const corr = new Float32Array(halfN);
+  for (let lag = 0; lag < halfN; lag++) {
     let s = 0;
     for (let i = 0; i < N - lag; i++) s += buf[i] * buf[i + lag];
     corr[lag] = s;
@@ -665,53 +662,49 @@ function autocorrelate(buf, sampleRate) {
 
   // 最初の極小点を探す
   let d = 0;
-  while (d < lagMax - 1 && corr[d] > corr[d + 1]) d++;
+  while (d < halfN - 1 && corr[d] > corr[d + 1]) d++;
 
   // 極大点を探す
   let maxVal = -1, maxI = d;
-  for (let i = d; i <= lagMax; i++) {
+  for (let i = d; i < halfN; i++) {
     if (corr[i] > maxVal) { maxVal = corr[i]; maxI = i; }
   }
 
-  if (corr[0] === 0) return null;
+  if (corr[0] === 0 || maxI === 0) return null;
   const confidence = maxVal / corr[0];
-  if (confidence < 0.38) return null;
+  // 信頼度閾値を大幅緩和: トランペット等ブラス楽器は倍音が複雑で
+  // 基音の相関ピークが低くなりやすい
+  if (confidence < 0.20) return null;
 
   // 放物線補間でlag精度向上
   let bestLag = maxI;
-  if (maxI > 0 && maxI < lagMax) {
-    const y0 = corr[maxI - 1], y1 = corr[maxI], y2 = corr[maxI + 1];
-    const denom = y0 - 2 * y1 + y2;
-    if (Math.abs(denom) > 1e-10) bestLag = maxI + 0.5 * (y0 - y2) / denom;
+  if (maxI > 0 && maxI < halfN - 1) {
+    const y0 = corr[maxI-1], y1 = corr[maxI], y2 = corr[maxI+1];
+    const denom = y0 - 2*y1 + y2;
+    if (Math.abs(denom) > 1e-10) bestLag = maxI + 0.5*(y0-y2)/denom;
   }
   let freq = sampleRate / bestLag;
 
-  // ===== サブハーモニックチェック（ブラス楽器の倍音問題対策）=====
-  // 検出ラグの2倍（＝1オクターブ下）に有力ピークがあれば基音はそちら。
-  // トランペットは第2倍音が基音より強いことが多く、誤って1オクターブ上を
-  // 検出するケースへの対策。
-  const subLagI = maxI * 2;
-  if (subLagI <= lagMax) {
-    const subConf = corr[subLagI] / corr[0];
-    if (subConf > confidence * 0.6) {
-      // 1オクターブ下のラグも放物線補間
-      let subLag = subLagI;
-      if (subLagI > 0 && subLagI < lagMax) {
-        const y0 = corr[subLagI - 1], y1 = corr[subLagI], y2 = corr[subLagI + 1];
-        const denom = y0 - 2 * y1 + y2;
-        if (Math.abs(denom) > 1e-10) subLag = subLagI + 0.5 * (y0 - y2) / denom;
+  // サブハーモニックチェック（ブラス楽器の倍音誤検出対策）
+  // 検出ラグの2倍（1オクターブ下）に有力ピークがあれば基音はそちら
+  const sub2 = maxI * 2;
+  if (sub2 < halfN) {
+    const subConf = corr[sub2] / corr[0];
+    if (subConf > confidence * 0.55) {
+      let subLag = sub2;
+      if (sub2 > 0 && sub2 < halfN - 1) {
+        const y0=corr[sub2-1], y1=corr[sub2], y2=corr[sub2+1];
+        const denom=y0-2*y1+y2;
+        if (Math.abs(denom)>1e-10) subLag=sub2+0.5*(y0-y2)/denom;
       }
       freq = sampleRate / subLag;
     }
   }
 
-  // オクターブ自動補正: 範囲外なら1オクターブシフトして救済
-  // 高すぎる（倍音を基音と誤検出）→ 1オクターブ下げる
-  if (freq > 1100 && freq / 2 >= 130) freq /= 2;
-  // 低すぎる（サブハーモニック誤検出）→ 1オクターブ上げる
-  if (freq < 130 && freq * 2 <= 1150) freq *= 2;
+  // オクターブ自動補正（範囲外→1オクターブシフトで救済）
+  if (freq > 1100 && freq/2 >= 130) freq /= 2;
+  if (freq < 130 && freq*2 <= 1150) freq *= 2;
 
-  // 最終レンジチェック
   if (freq < 130 || freq > 1150) return null;
   return freq;
 }
