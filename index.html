@@ -648,6 +648,17 @@ function detectLoop() {
 
   let hz = autocorrelate(buf, audioCtx.sampleRate);
 
+  // HPSクロスチェック: YINが倍音（基音の2倍）を誤検出した場合に修正
+  // 主にトランペット等の金管楽器での1オクターブ誤検出を解消する
+  const hpsHz = hpsDetect(audioCtx.sampleRate);
+  if (hz !== null && hpsHz !== null) {
+    if (hz > hpsHz * 1.7 && hz < hpsHz * 2.3) {
+      hz = hz / 2; // YINが2倍音を検出 → 1オクターブ下げる
+    }
+  } else if (hz === null && hpsHz !== null) {
+    hz = hpsHz; // YINが失敗した場合のフォールバック
+  }
+
   // ピッチホールド: nullでも直前の有効値が新しければ補間して続行
   if (hz === null) {
     if (lastValidHz !== null && now - lastValidHzTime < PITCH_HOLD_MS) {
@@ -859,6 +870,32 @@ function autocorrelate(buf, sampleRate) {
 
   if (freq < PITCH_MIN_HZ || freq > PITCH_MAX_HZ) return null;
   return freq;
+}
+
+// HPS（高調波積算スペクトル）: FFTの倍音を掛け合わせて基音を特定
+// トランペット等で基音が弱く倍音が強い場合でも基音を検出できる
+function hpsDetect(sampleRate) {
+  const binCount = analyser.frequencyBinCount; // fftSize/2 = 2048
+  const freqData = new Float32Array(binCount);
+  analyser.getFloatFrequencyData(freqData); // dB値
+
+  const freqPerBin = sampleRate / analyser.fftSize;
+  const H = 4; // 基音 + 3倍音まで積算
+  const binMin = Math.max(1, Math.floor(PITCH_MIN_HZ / freqPerBin));
+  const binMax = Math.min(Math.floor(PITCH_MAX_HZ / freqPerBin), Math.floor(binCount / H) - 1);
+
+  let bestBin = -1, bestVal = -Infinity;
+  for (let i = binMin; i <= binMax; i++) {
+    let sum = 0, skip = false;
+    for (let h = 1; h <= H; h++) {
+      const v = freqData[i * h];
+      if (v < -100) { skip = true; break; } // 無音ビンはスキップ
+      sum += v; // dBの足し算 = 線形値の掛け算と等価
+    }
+    if (!skip && sum > bestVal) { bestVal = sum; bestBin = i; }
+  }
+  if (bestBin < 0) return null;
+  return bestBin * freqPerBin;
 }
 
 function finalizeNote() {
