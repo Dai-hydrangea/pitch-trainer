@@ -534,6 +534,7 @@ document.getElementById('start-btn').addEventListener('click', async () => {
       video: false
     });
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') await audioCtx.resume();
     analyser = audioCtx.createAnalyser();
     analyser.fftSize = FFT_SIZE;
     analyser.smoothingTimeConstant = 0.3;
