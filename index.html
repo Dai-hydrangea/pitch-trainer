@@ -473,9 +473,9 @@ function detectLoop() {
   const rms = calcRMS(buf);
   const now = Date.now();
 
-  // リンガー中はスピーカー→マイクのフィードバックを防ぐためマイク処理をスキップ。
+  // リンガー中（練習モードのみ）はスピーカー→マイクのフィードバックを防ぐためマイク処理をスキップ。
   // ただし楽器を吹いた（スピーカーより大幅に大きい音）場合は即座に再開。
-  if (refLingering) {
+  if (refLingering && pracActive) {
     if (rms > SILENCE_THRESH / 100 * LINGER_BLOW_MULT) {
       // 楽器が鳴り始めた → リンガーキャンセル
       refLingering = false;
@@ -509,8 +509,11 @@ function detectLoop() {
         }
       }
     } else if (trackState === 'attack') {
-      trackState = 'silent';
-      attackStartTime = null;
+      // 瞬間的な音量ゆらぎでアタックをキャンセルしないよう猶予を持たせる
+      if (lastSoundTime === null || now - lastSoundTime > SILENCE_END_MS) {
+        trackState = 'silent';
+        attackStartTime = null;
+      }
     }
     drawTuner(null, null, 'tuner-canvas');
     drawTuner(null, null, 'prac-tuner');
@@ -549,8 +552,9 @@ function detectLoop() {
       currentCentsArr = [];
     }
   } else if (trackState === 'stable') {
-    // 音が大きく変わった?
-    if (Math.abs(midiI - currentMidi) >= 1) {
+    // 音が大きく変わった? 練習モード中は揺らぎを少し広めに許容
+    const noteChangeTh = pracActive ? 2 : 1;
+    if (Math.abs(midiI - currentMidi) >= noteChangeTh) {
       // 前のノートを確定
       finalizeNote();
       trackState = 'attack';
