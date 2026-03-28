@@ -525,7 +525,14 @@ document.getElementById('prac-stop-btn').addEventListener('click', stopPractice)
 document.getElementById('start-btn').addEventListener('click', async () => {
   if (isStarted) { stopAudio(); return; }
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: false,   // iOS Audio Ducking 軽減
+        noiseSuppression: false,
+        autoGainControl: false
+      },
+      video: false
+    });
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     analyser = audioCtx.createAnalyser();
     analyser.fftSize = FFT_SIZE;
