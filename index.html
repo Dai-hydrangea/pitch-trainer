@@ -364,7 +364,8 @@ let lastSoundTime = null;
 let currentMidi = null;
 let currentCentsArr = [];
 let ATTACK_MS = 150;
-let SILENCE_THRESH = 4; // iPhoneで楽器を拾いやすいよう低めに設定
+let SILENCE_THRESH = 4; // iPhoneで楽器を拾いやすいよう低めに設定（calcRMSの0-100スケールと同単位）
+let smoothedRms = 0; // EMAスムージング済みRMS
 let SILENCE_END_MS = 120;
 
 // グラフデータ
@@ -500,13 +501,15 @@ function detectLoop() {
   const buf = new Float32Array(analyser.fftSize);
   analyser.getFloatTimeDomainData(buf);
 
-  const rms = calcRMS(buf);
+  // EMAスムージング: フレーム間のRMS変動を抑える（トランペット等の倍音豊富な波形対策）
+  smoothedRms = smoothedRms * 0.75 + calcRMS(buf) * 0.25;
+  const rms = smoothedRms;
   const now = Date.now();
 
   // リンガー中（練習モードのみ）はスピーカー→マイクのフィードバックを防ぐためマイク処理をスキップ。
   // ただし楽器を吹いた（スピーカーより大幅に大きい音）場合は即座に再開。
   if (refLingering && pracActive) {
-    if (rms > SILENCE_THRESH / 100 * LINGER_BLOW_MULT) {
+    if (rms > SILENCE_THRESH * LINGER_BLOW_MULT) {
       // 楽器が鳴り始めた → リンガーキャンセル
       refLingering = false;
       if (pracAutoTimer !== null) { clearTimeout(pracAutoTimer); pracAutoTimer = null; }
@@ -521,7 +524,7 @@ function detectLoop() {
     }
   }
 
-  if (rms < SILENCE_THRESH / 100) {
+  if (rms < SILENCE_THRESH) {
     // 無音
     if (trackState === 'stable') {
       if (lastSoundTime !== null && now - lastSoundTime > SILENCE_END_MS) {
