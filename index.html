@@ -260,8 +260,8 @@ tr:last-child td { border-bottom: none; }
         <strong>無音判定閾値</strong>
         <span>この音量以下を無音とみなす (RMS)</span>
       </div>
-      <input type="range" id="silence-slider" min="1" max="30" value="4" step="1">
-      <span class="setting-val" id="silence-val">8</span>
+      <input type="range" id="silence-slider" min="1" max="30" value="2" step="1">
+      <span class="setting-val" id="silence-val">2</span>
     </div>
     <div class="setting-row">
       <div class="setting-label">
@@ -364,7 +364,7 @@ let lastSoundTime = null;
 let currentMidi = null;
 let currentCentsArr = [];
 let ATTACK_MS = 150;
-let SILENCE_THRESH = 4; // iPhoneで楽器を拾いやすいよう低めに設定（calcRMSの0-100スケールと同単位）
+let SILENCE_THRESH = 2; // 感度高め（機種差対応）。設定スライダーで変更可
 let smoothedRms = 0; // EMAスムージング済みRMS
 let SILENCE_END_MS = 120;
 
@@ -502,7 +502,7 @@ function detectLoop() {
   analyser.getFloatTimeDomainData(buf);
 
   // EMAスムージング: フレーム間のRMS変動を抑える（トランペット等の倍音豊富な波形対策）
-  smoothedRms = smoothedRms * 0.75 + calcRMS(buf) * 0.25;
+  smoothedRms = smoothedRms * 0.5 + calcRMS(buf) * 0.5; // 応答速度重視（0.75→0.5）
   const rms = smoothedRms;
   const now = Date.now();
 
@@ -696,9 +696,9 @@ function autocorrelate(buf, sampleRate) {
     cmndf[tau] = cumSum > 0 ? (diff[tau] * tau) / cumSum : 1;
   }
 
-  // Step3: 検出レンジ (130Hz〜1150Hz)
-  const tauMin = Math.max(2, Math.floor(sampleRate / 1150));
-  const tauMax = Math.min(W - 2, Math.floor(sampleRate / 130));
+  // Step3: 検出レンジ (80Hz〜3000Hz: 口笛・男性低音も対応)
+  const tauMin = Math.max(2, Math.floor(sampleRate / 3000));
+  const tauMax = Math.min(W - 2, Math.floor(sampleRate / 80));
 
   // Step4: 閾値以下の最初の谷を探す（基音周期）
   const THRESH = 0.15; // 0に近いほど強い周期性、0.15は十分緩い
@@ -741,10 +741,10 @@ function autocorrelate(buf, sampleRate) {
   let freq = sampleRate / lag;
 
   // オクターブ補正（範囲外の場合にシフト）
-  if (freq > 1100 && freq / 2 >= 130) freq /= 2;
-  if (freq < 130 && freq * 2 <= 1150) freq *= 2;
+  if (freq > 3000 && freq / 2 >= 80) freq /= 2;
+  if (freq < 80 && freq * 2 <= 3000) freq *= 2;
 
-  if (freq < 130 || freq > 1150) return null;
+  if (freq < 80 || freq > 3000) return null;
   return freq;
 }
 
@@ -1152,8 +1152,11 @@ renderReport();
 // キャンバスサイズ初期化
 window.addEventListener('resize', () => { drawGraph(); });
 
-// A4スライダーイベントを初期化時に発火
+// 各スライダーの初期値を反映
 document.getElementById('a4-slider').dispatchEvent(new Event('input'));
+document.getElementById('silence-slider').dispatchEvent(new Event('input'));
+document.getElementById('attack-slider').dispatchEvent(new Event('input'));
+document.getElementById('silend-slider').dispatchEvent(new Event('input'));
 
 // ============================================================
 // Service Worker 登録（PWA・オフライン対応）
