@@ -1,5 +1,5 @@
 // Service Worker for 音程練習アプリ
-const CACHE = 'pitch-trainer-v8';
+const CACHE = 'pitch-trainer-v9';
 const ASSETS = ['./', './manifest.json', './icon.svg'];
 
 // インストール: キャッシュに保存
