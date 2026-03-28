@@ -48,7 +48,7 @@ h3 { font-size: 13px; font-weight: 600; color: var(--text2); margin-bottom: 6px;
 
 /* Tabs — sticky below header */
 #tabs { position: sticky; top: 49px; z-index: 99; display: flex; background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 12px; overflow-x: auto; }
-.tab { padding: 10px 14px; cursor: pointer; border-bottom: 2px solid transparent; color: var(--text2); font-size: 13px; font-weight: 500; transition: all .15s; white-space: nowrap; }
+.tab { padding: 10px 10px; cursor: pointer; border-bottom: 2px solid transparent; color: var(--text2); font-size: 12px; font-weight: 500; transition: all .15s; white-space: nowrap; }
 .tab:hover { color: var(--text); }
 .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
 
@@ -141,7 +141,12 @@ tr:last-child td { border-bottom: none; }
 .ens-ji-label { font-size: 10px; font-weight: 400; color: var(--text2); margin-left: 1px; vertical-align: super; }
 .ens-sep { color: var(--text2); margin: 0 4px; }
 .ens-mode-row { display: flex; gap: 8px; margin: 10px 0 6px; }
-.ens-mode-row .btn { flex: 1; font-size: 12px; padding: 8px 4px; }
+.ens-mode-row .btn { flex: 1; font-size: 12px; padding: 8px 4px; border: 1px solid var(--border); color: var(--text2); background: var(--card); }
+.ens-mode-row .btn.sel { background: var(--accent); color: #0d1117; border-color: var(--accent); }
+.ens-tone-btn { padding: 8px 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); color: var(--accent); font-size: 20px; font-weight: 700; cursor: pointer; display: inline-flex; flex-direction: column; align-items: center; gap: 2px; }
+.ens-tone-btn.playing { background: var(--accent); color: #0d1117; border-color: var(--accent); }
+.ens-tone-btn.playing .ens-ji-label { color: #0d1117; }
+#ens-chord-display { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 6px; padding: 10px 0 2px; }
 #ens-play-btn { width: 100%; margin-top: 4px; }
 #ens-now-note { font-size: 56px; font-weight: 700; color: var(--accent); line-height: 1; min-height: 64px; text-align: center; }
 #ens-role-display { font-size: 14px; color: var(--text2); text-align: center; min-height: 20px; margin: 2px 0 6px; }
@@ -1231,8 +1236,9 @@ const CHORD_DEFS = {
   'M':    { name: 'メジャー',      ratios: [1, 5/4, 3/2],        roles: ['根音','第3音','第5音'] },
   'm':    { name: 'マイナー',      ratios: [1, 6/5, 3/2],        roles: ['根音','第3音','第5音'] },
   'M7':   { name: 'メジャー7th',   ratios: [1, 5/4, 3/2, 15/8], roles: ['根音','第3音','第5音','第7音'] },
-  '7':    { name: 'ドミナント7th', ratios: [1, 5/4, 3/2, 7/4],  roles: ['根音','第3音','第5音','♭7音'] },
-  'm7':   { name: 'マイナー7th',   ratios: [1, 6/5, 3/2, 9/5],  roles: ['根音','第3音','第5音','第7音'] },
+  '7':    { name: 'ドミナント7th', ratios: [1, 5/4, 3/2, 16/9], roles: ['根音','第3音','第5音','♭7音'] },
+  // ↑ 7/4(-31¢)は理論的JIだが実用管弦楽では16/9(-4¢)が標準
+  'm7':   { name: 'マイナー7th',   ratios: [1, 6/5, 3/2, 16/9], roles: ['根音','第3音','第5音','♭7音'] },
   'dim':  { name: 'ディミニッシュ', ratios: [1, 6/5, 64/45],     roles: ['根音','第3音','減5音'] },
   'sus4': { name: 'サスペンデッド', ratios: [1, 4/3, 3/2],       roles: ['根音','第4音','第5音'] },
 };
@@ -1305,6 +1311,7 @@ document.getElementById('ens-reset-btn').addEventListener('click', () => {
 });
 
 function startChordOsc() {
+  stopEnsSingleNote();
   stopChordOsc(false);
   if (!audioCtx) return;
   if (audioCtx.state === 'suspended') audioCtx.resume();
@@ -1317,12 +1324,13 @@ function startChordOsc() {
   comp.attack.value = 0.003; comp.release.value = 0.1;
   ensMasterGain.connect(comp);
   comp.connect(audioCtx.destination);
+  const voiceGain = 0.9 / def.ratios.length; // 音数で割って合計を0.9に抑える
   ensOscs = def.ratios.map(ratio => {
     const osc = audioCtx.createOscillator();
     const g = audioCtx.createGain();
     osc.type = 'sine';
     osc.frequency.value = rootHz * ratio;
-    g.gain.value = 0.35;
+    g.gain.value = voiceGain;
     osc.connect(g); g.connect(ensMasterGain);
     osc.start();
     return { osc, g };
@@ -1352,17 +1360,31 @@ function stopChordOsc(updateUI) {
 
 function updateEnsChordDisplay() {
   const def = CHORD_DEFS[ensChordType];
-  const parts = def.ratios.map((ratio, i) => {
+  const container = document.getElementById('ens-chord-display');
+  container.innerHTML = '';
+  stopEnsSingleNote(); // コード変更時は単音停止
+  def.ratios.forEach((ratio, i) => {
+    if (i > 0) {
+      const sep = document.createElement('span');
+      sep.className = 'ens-sep'; sep.textContent = '—';
+      container.appendChild(sep);
+    }
     const jiC = 1200 * Math.log2(ratio);
     const etC = Math.round(jiC / 100) * 100;
     const off = jiC - etC;
     const noteMidi = ensRootMidi + Math.round(etC / 100);
     const name = GERMAN[noteMidi % 12];
     const offStr = off === 0 ? '±0¢' : (off > 0 ? `+${Math.round(off)}¢` : `${Math.round(off)}¢`);
-    return `<span class="ens-tone-name">${name}<span class="ens-ji-label">${offStr}</span></span>`;
+    const btn = document.createElement('button');
+    btn.className = 'ens-tone-btn';
+    btn.dataset.idx = i;
+    btn.innerHTML = `${name}<span class="ens-ji-label">${offStr}</span>`;
+    btn.addEventListener('click', () => {
+      if (!audioCtx) { alert('まずマイクを開始してください'); return; }
+      playEnsSingleNote(ratio, i);
+    });
+    container.appendChild(btn);
   });
-  document.getElementById('ens-chord-display').innerHTML =
-    parts.join('<span class="ens-sep"> — </span>');
 }
 
 // detectLoopから呼ばれる（stable時のみ）
@@ -1402,7 +1424,7 @@ function handleEnsDetection(midiF, midiI, hz) {
   if (ensMode === 'mute') {
     if (closestIdx !== ensMutedIdx) {
       restoreEnsOsc(); ensMutedIdx = closestIdx;
-      if (ensOscs[closestIdx]) ensOscs[closestIdx].g.gain.setTargetAtTime(0, audioCtx.currentTime, 0.05);
+      if (ensOscs[closestIdx]) ensOscs[closestIdx].g.gain.setTargetAtTime(0, audioCtx.currentTime, 0.08);
     }
   }
   updateEnsDisplay(role, etDev, jiDev, jiOff);
@@ -1411,9 +1433,48 @@ function handleEnsDetection(midiF, midiI, hz) {
 
 function restoreEnsOsc() {
   if (ensMutedIdx >= 0 && ensOscs[ensMutedIdx]) {
-    ensOscs[ensMutedIdx].g.gain.setTargetAtTime(0.35, audioCtx.currentTime, 0.1);
+    const vg = 0.9 / CHORD_DEFS[ensChordType].ratios.length;
+    ensOscs[ensMutedIdx].g.gain.setTargetAtTime(vg, audioCtx.currentTime, 0.1);
   }
   ensMutedIdx = -1;
+}
+
+// 単音プレビュー再生
+let ensSingleOsc = null, ensSingleGain = null, ensSingleToneIdx = -1;
+
+function playEnsSingleNote(ratio, idx) {
+  if (ensSingleToneIdx === idx) { stopEnsSingleNote(); return; } // 同じボタン→停止
+  stopEnsSingleNote();
+  if (!audioCtx) return;
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  const freq = midiToHz(ensRootMidi) * ratio;
+  ensSingleOsc = audioCtx.createOscillator();
+  ensSingleGain = audioCtx.createGain();
+  ensSingleGain.gain.value = 0;
+  ensSingleOsc.type = 'sine';
+  ensSingleOsc.frequency.value = freq;
+  const comp = audioCtx.createDynamicsCompressor();
+  comp.threshold.value = -18; comp.ratio.value = 12;
+  ensSingleOsc.connect(ensSingleGain);
+  ensSingleGain.connect(comp);
+  comp.connect(audioCtx.destination);
+  ensSingleOsc.start();
+  ensSingleGain.gain.setTargetAtTime(0.8, audioCtx.currentTime, 0.05);
+  ensSingleToneIdx = idx;
+  document.querySelectorAll('.ens-tone-btn').forEach(b =>
+    b.classList.toggle('playing', +b.dataset.idx === idx));
+}
+
+function stopEnsSingleNote() {
+  if (ensSingleGain && audioCtx)
+    ensSingleGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.1);
+  if (ensSingleOsc) {
+    const o = ensSingleOsc;
+    setTimeout(() => { try { o.stop(); } catch(e){} }, 400);
+    ensSingleOsc = null; ensSingleGain = null;
+  }
+  ensSingleToneIdx = -1;
+  document.querySelectorAll('.ens-tone-btn').forEach(b => b.classList.remove('playing'));
 }
 
 function updateEnsDisplay(role, etDev, jiDev, jiOff) {
