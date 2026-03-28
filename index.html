@@ -257,8 +257,8 @@ tr:last-child td { border-bottom: none; }
     </div>
     <div class="setting-row">
       <div class="setting-label">
-        <strong>無音判定閾値</strong>
-        <span>この音量以下を無音とみなす (RMS)</span>
+        <strong>マイク感度</strong>
+        <span>音として反応する最低音量。小さい=感度高い（反応しやすい）、大きい=感度低い（ノイズ無視）</span>
       </div>
       <input type="range" id="silence-slider" min="1" max="30" value="2" step="1">
       <span class="setting-val" id="silence-val">2</span>
@@ -659,7 +659,9 @@ function calcRMS(buf) {
 function updateRmsDisplay(rms) {
   const el = document.getElementById('rms-display');
   if (!el) return;
-  el.textContent = `音量: ${rms.toFixed(2)}  閾値: ${SILENCE_THRESH.toFixed(1)}`;
+  const detecting = rms >= SILENCE_THRESH;
+  el.textContent = `マイク音量: ${rms.toFixed(2)} / 感度設定: ${SILENCE_THRESH.toFixed(0)}  ${detecting ? '→ 検出中' : '→ 無音'}`;
+  el.style.color = detecting ? '#3fb950' : '#58a6ff';
 }
 
 function autocorrelate(buf, sampleRate) {
@@ -971,8 +973,16 @@ function startRefTone(midi) {
     oscNode = audioCtx.createOscillator();
     oscNode.type = 'sine';
     oscNode.frequency.value = midiToHz(midi);
+    // DynamicsCompressorで音量を最大化（iPhone最大音量でも十分聴こえるよう）
+    const comp = audioCtx.createDynamicsCompressor();
+    comp.threshold.value = -24;
+    comp.knee.value = 6;
+    comp.ratio.value = 20;
+    comp.attack.value = 0.003;
+    comp.release.value = 0.1;
     oscNode.connect(gainNode);
-    gainNode.connect(audioCtx.destination);
+    gainNode.connect(comp);
+    comp.connect(audioCtx.destination);
     oscNode.start();
   } else {
     // 音が変わった: 周波数を滑らかに切り替え
@@ -981,7 +991,7 @@ function startRefTone(midi) {
 
   // フェードイン
   gainNode.gain.cancelScheduledValues(audioCtx.currentTime);
-  gainNode.gain.setTargetAtTime(0.25, audioCtx.currentTime, 0.05);
+  gainNode.gain.setTargetAtTime(1.0, audioCtx.currentTime, 0.05);
   refPlaying = true;
 
   document.getElementById('prac-note-big').textContent = noteLabel(midi);
