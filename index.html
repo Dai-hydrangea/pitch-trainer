@@ -159,6 +159,7 @@ tr:last-child td { border-bottom: none; }
     <div id="now-cents">— ¢</div>
     <canvas id="tuner-canvas"></canvas>
     <div id="state-badge" class="silent">SILENT</div>
+    <div id="rms-display" style="font-size:11px;color:var(--text2);margin-top:6px;">音量レベル: —</div>
   </div>
   <!-- デバッググラフ -->
   <div class="card" id="graph-wrap">
@@ -259,7 +260,7 @@ tr:last-child td { border-bottom: none; }
         <strong>無音判定閾値</strong>
         <span>この音量以下を無音とみなす (RMS)</span>
       </div>
-      <input type="range" id="silence-slider" min="1" max="30" value="8" step="1">
+      <input type="range" id="silence-slider" min="1" max="30" value="4" step="1">
       <span class="setting-val" id="silence-val">8</span>
     </div>
     <div class="setting-row">
@@ -363,7 +364,7 @@ let lastSoundTime = null;
 let currentMidi = null;
 let currentCentsArr = [];
 let ATTACK_MS = 150;
-let SILENCE_THRESH = 8;
+let SILENCE_THRESH = 4; // iPhoneで楽器を拾いやすいよう低めに設定
 let SILENCE_END_MS = 120;
 
 // グラフデータ
@@ -547,6 +548,7 @@ function detectLoop() {
     drawTuner(null, null, 'tuner-canvas');
     drawTuner(null, null, 'prac-tuner');
     updateNowDisplay(null, null);
+    document.getElementById('rms-display').textContent = `音量レベル: ${rms.toFixed(3)} (閾値: ${(SILENCE_THRESH/100).toFixed(3)})`;
     graphPoints.push({ t: now, hz: null, state: trackState });
     trimGraph(now);
     drawGraph();
@@ -651,67 +653,79 @@ function calcRMS(buf) {
 }
 
 function autocorrelate(buf, sampleRate) {
+  // YINアルゴリズム
+  // 自己相関より管楽器に強い: 差分関数の最小値で基音を検出するため
+  // 倍音が基音より強くても惑わされない
   const N = buf.length;
-  const halfN = Math.floor(N / 2);
+  const W = Math.floor(N / 2);
 
-  // RMS check
+  // 音量チェック
   let rms = 0;
   for (let i = 0; i < N; i++) rms += buf[i] * buf[i];
   rms = Math.sqrt(rms / N);
-  if (rms < 0.005) return null;
+  if (rms < 0.003) return null;
 
-  // 自己相関（フル範囲: N/2まで）
-  const corr = new Float32Array(halfN);
-  for (let lag = 0; lag < halfN; lag++) {
+  // Step1: 差分関数 d(τ) = Σ(x_i - x_{i+τ})²
+  const diff = new Float32Array(W);
+  for (let tau = 1; tau < W; tau++) {
     let s = 0;
-    for (let i = 0; i < N - lag; i++) s += buf[i] * buf[i + lag];
-    corr[lag] = s;
+    for (let i = 0; i < W; i++) {
+      const delta = buf[i] - buf[i + tau];
+      s += delta * delta;
+    }
+    diff[tau] = s;
   }
 
-  // 最初の極小点を探す
-  let d = 0;
-  while (d < halfN - 1 && corr[d] > corr[d + 1]) d++;
-
-  // 極大点を探す
-  let maxVal = -1, maxI = d;
-  for (let i = d; i < halfN; i++) {
-    if (corr[i] > maxVal) { maxVal = corr[i]; maxI = i; }
+  // Step2: 累積平均正規化差分関数 (CMNDF)
+  // d'(τ) = d(τ) / [(1/τ)・Σd(j)]  → 0に近いほど基音候補
+  const cmndf = new Float32Array(W);
+  cmndf[0] = 1;
+  let cumSum = 0;
+  for (let tau = 1; tau < W; tau++) {
+    cumSum += diff[tau];
+    cmndf[tau] = cumSum > 0 ? (diff[tau] * tau) / cumSum : 1;
   }
 
-  if (corr[0] === 0 || maxI === 0) return null;
-  const confidence = maxVal / corr[0];
-  // 信頼度閾値を大幅緩和: トランペット等ブラス楽器は倍音が複雑で
-  // 基音の相関ピークが低くなりやすい
-  if (confidence < 0.20) return null;
+  // Step3: 検出レンジ (130Hz〜1150Hz)
+  const tauMin = Math.max(2, Math.floor(sampleRate / 1150));
+  const tauMax = Math.min(W - 2, Math.floor(sampleRate / 130));
 
-  // 放物線補間でlag精度向上
-  let bestLag = maxI;
-  if (maxI > 0 && maxI < halfN - 1) {
-    const y0 = corr[maxI-1], y1 = corr[maxI], y2 = corr[maxI+1];
-    const denom = y0 - 2*y1 + y2;
-    if (Math.abs(denom) > 1e-10) bestLag = maxI + 0.5*(y0-y2)/denom;
-  }
-  let freq = sampleRate / bestLag;
-
-  // サブハーモニックチェック（ブラス楽器の倍音誤検出対策）
-  // 検出ラグの2倍（1オクターブ下）に有力ピークがあれば基音はそちら
-  const sub2 = maxI * 2;
-  if (sub2 < halfN) {
-    const subConf = corr[sub2] / corr[0];
-    if (subConf > confidence * 0.55) {
-      let subLag = sub2;
-      if (sub2 > 0 && sub2 < halfN - 1) {
-        const y0=corr[sub2-1], y1=corr[sub2], y2=corr[sub2+1];
-        const denom=y0-2*y1+y2;
-        if (Math.abs(denom)>1e-10) subLag=sub2+0.5*(y0-y2)/denom;
-      }
-      freq = sampleRate / subLag;
+  // Step4: 閾値以下の最初の谷を探す（基音周期）
+  const THRESH = 0.15; // 0に近いほど強い周期性、0.15は十分緩い
+  let bestTau = -1;
+  for (let tau = tauMin; tau <= tauMax; tau++) {
+    if (cmndf[tau] < THRESH) {
+      // 局所最小点に進む
+      while (tau + 1 <= tauMax && cmndf[tau + 1] < cmndf[tau]) tau++;
+      bestTau = tau;
+      break;
     }
   }
 
-  // オクターブ自動補正（範囲外→1オクターブシフトで救済）
-  if (freq > 1100 && freq/2 >= 130) freq /= 2;
-  if (freq < 130 && freq*2 <= 1150) freq *= 2;
+  // フォールバック: 閾値以下なし → 最小値を採用（緩い閾値0.45）
+  if (bestTau < 0) {
+    let minVal = Infinity;
+    for (let tau = tauMin; tau <= tauMax; tau++) {
+      if (cmndf[tau] < minVal) { minVal = cmndf[tau]; bestTau = tau; }
+    }
+    if (minVal > 0.45) return null;
+  }
+
+  if (bestTau < tauMin) return null;
+
+  // Step5: 放物線補間でlag精度向上
+  let lag = bestTau;
+  if (bestTau > 0 && bestTau < W - 1) {
+    const y0 = cmndf[bestTau-1], y1 = cmndf[bestTau], y2 = cmndf[bestTau+1];
+    const denom = y0 - 2*y1 + y2;
+    if (Math.abs(denom) > 1e-10) lag = bestTau + 0.5*(y0-y2)/denom;
+  }
+
+  let freq = sampleRate / lag;
+
+  // オクターブ補正（範囲外の場合にシフト）
+  if (freq > 1100 && freq / 2 >= 130) freq /= 2;
+  if (freq < 130 && freq * 2 <= 1150) freq *= 2;
 
   if (freq < 130 || freq > 1150) return null;
   return freq;
