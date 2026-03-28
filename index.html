@@ -505,27 +505,8 @@ document.getElementById('export-btn').addEventListener('click', exportCSV);
 
 document.getElementById('prac-start-btn').addEventListener('click', async () => {
   if (!isStarted) {
-    // マイク未起動なら自動で開始
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          channelCount: 1,
-          echoCancellation: false,   // iOSのエコーキャンセルOFF
-          noiseSuppression: false,   // iOSのノイズ抑制OFF（これがトランペットを消している）
-          autoGainControl: false     // AGCをOFF（音量の自動変動を防ぐ）
-        },
-        video: false
-      });
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      analyser = audioCtx.createAnalyser();
-      analyser.fftSize = FFT_SIZE;
-      analyser.smoothingTimeConstant = 0.3;
-      sourceNode = audioCtx.createMediaStreamSource(stream);
-      sourceNode.connect(analyser);
-      isStarted = true;
-      document.getElementById('start-btn').textContent = '停止';
-      document.getElementById('start-btn').className = 'btn btn-danger';
-      timerId = setInterval(detectLoop, DETECT_INTERVAL);
+      await startMic();
     } catch(e) {
       alert('マイクへのアクセスが拒否されました: ' + e.message);
       return;
@@ -544,21 +525,49 @@ document.getElementById('prac-stop-btn').addEventListener('click', stopPractice)
 // ============================================================
 // マイク開始
 // ============================================================
+
+// iOS: noiseSuppression/AGC/echoCancellation をOFFにしないと
+//      楽器音（トランペット等）がノイズとして除去され RMS≈0 になる。
+// Mac/他: 同設定だと動作しない場合があるため iOS のみ適用し、
+//          失敗時は { audio:true } にフォールバックする。
+async function startMic() {
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const iosConstraints = {
+    audio: { channelCount: 1, echoCancellation: false,
+             noiseSuppression: false, autoGainControl: false },
+    video: false
+  };
+  const fallbackConstraints = { audio: true, video: false };
+
+  let stream;
+  if (isIOS) {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia(iosConstraints);
+    } catch(e) {
+      // iOS でも制約が拒否された場合はフォールバック
+      stream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
+    }
+  } else {
+    stream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
+  }
+
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') await audioCtx.resume();
+  analyser = audioCtx.createAnalyser();
+  analyser.fftSize = FFT_SIZE;
+  analyser.smoothingTimeConstant = 0.3;
+  sourceNode = audioCtx.createMediaStreamSource(stream);
+  sourceNode.connect(analyser);
+  isStarted = true;
+  document.getElementById('start-btn').textContent = '停止';
+  document.getElementById('start-btn').className = 'btn btn-danger';
+  timerId = setInterval(detectLoop, DETECT_INTERVAL);
+}
+
 document.getElementById('start-btn').addEventListener('click', async () => {
   if (isStarted) { stopAudio(); return; }
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    if (audioCtx.state === 'suspended') await audioCtx.resume();
-    analyser = audioCtx.createAnalyser();
-    analyser.fftSize = FFT_SIZE;
-    analyser.smoothingTimeConstant = 0.3;
-    sourceNode = audioCtx.createMediaStreamSource(stream);
-    sourceNode.connect(analyser);
-    isStarted = true;
-    document.getElementById('start-btn').textContent = '停止';
-    document.getElementById('start-btn').className = 'btn btn-danger';
-    timerId = setInterval(detectLoop, DETECT_INTERVAL);
+    await startMic();
   } catch(e) {
     alert('マイクへのアクセスが拒否されました: ' + e.message);
   }
