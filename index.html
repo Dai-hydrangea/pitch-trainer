@@ -4571,15 +4571,24 @@ document.addEventListener('touchstart', resumeAudioCtx, { passive: true });
       document.getElementById('tutorial-step').textContent = `${idx + 1} / ${activeSteps.length}`;
 
       bubble.classList.remove('arrow-top', 'arrow-bottom');
+      // 吹き出しの高さを事前計測
+      bubble.style.visibility = 'hidden'; bubble.style.top = '0'; bubble.style.left = '0';
+      const bh = bubble.offsetHeight || 180;
+      bubble.style.visibility = '';
       const spaceBelow = window.innerHeight - rect.bottom;
-      const useBottom = step.pos === 'bottom' || (step.pos !== 'top' && spaceBelow > 180);
+      const spaceAbove = rect.top;
+      const useBottom = spaceBelow > bh + 30 || (step.pos === 'bottom' && spaceBelow > bh + 20);
+      let top;
       if (useBottom) {
         bubble.classList.add('arrow-bottom');
-        bubble.style.top = (rect.bottom + pad + 14) + 'px';
+        top = rect.bottom + pad + 14;
       } else {
         bubble.classList.add('arrow-top');
-        bubble.style.top = Math.max(10, rect.top - pad - 160) + 'px';
+        top = rect.top - pad - bh - 14;
       }
+      // 画面内にクランプ
+      top = Math.max(10, Math.min(top, window.innerHeight - bh - 10));
+      bubble.style.top = top + 'px';
       bubble.style.left = Math.max(10, Math.min(window.innerWidth - 340, rect.left - 20)) + 'px';
 
       document.getElementById('tutorial-next').textContent = idx === activeSteps.length - 1 ? '✓ Done!' : 'Next →';
