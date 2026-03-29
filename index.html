@@ -233,22 +233,20 @@ tr:last-child td { border-bottom: none; }
     <canvas id="tuner-canvas"></canvas>
     <div id="state-badge" class="silent">SILENT</div>
     <div id="rms-display" style="font-size:13px;color:#58a6ff;margin-top:6px;font-family:monospace;">—</div>
-    <!-- 音程フィードバック & 基準音 -->
-    <div style="margin-top:14px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
-      <button class="btn btn-success" id="prac-start-btn" data-i18n="pitch_feedback">▶ 音程フィードバック</button>
-      <button class="btn btn-outline" id="prac-stop-btn" style="display:none"data-i18n="stop">■ 停止</button>
-      <button class="btn" id="ref-tone-toggle" data-i18n="ref_tone_select">🎵 基準音選択</button>
+    <!-- 音程フィードバック -->
+    <div style="margin-top:14px; display:flex; gap:10px; justify-content:center;">
+      <button class="btn btn-success" id="prac-start-btn" style="flex:1;max-width:280px;padding:12px;font-size:15px;" data-i18n="pitch_feedback">▶ 音程フィードバック</button>
+      <button class="btn btn-outline" id="prac-stop-btn" style="flex:1;max-width:280px;padding:12px;font-size:15px;display:none" data-i18n="stop">■ 停止</button>
     </div>
-    <!-- 基準音選択パネル（トグル表示） -->
-    <div id="ref-tone-panel" style="display:none; margin-top:12px; border-top:1px solid var(--border); padding-top:12px;">
+    <!-- 基準音グリッド（常時表示） -->
+    <div style="margin-top:12px; border-top:1px solid var(--border); padding-top:10px;">
       <div style="font-size:12px;color:var(--text2);margin-bottom:6px" data-i18n="select_note">音名を選択（タップで再生/停止）</div>
       <div id="ref-tone-grid" style="display:grid; grid-template-columns:repeat(6,1fr); gap:4px; margin-bottom:8px;"></div>
-      <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
+      <div style="display:flex;align-items:center;gap:8px;">
         <span style="font-size:12px;color:var(--text2)" data-i18n="octave">オクターブ</span>
         <button class="btn" id="ref-oct-down" style="padding:4px 10px">−</button>
         <span id="ref-oct-val" style="font-size:14px;font-weight:600;min-width:20px;text-align:center">4</span>
         <button class="btn" id="ref-oct-up" style="padding:4px 10px">+</button>
-        <button class="btn btn-outline" id="ref-tone-stop-btn" style="margin-left:auto;font-size:12px"data-i18n="stop">■ 停止</button>
       </div>
     </div>
     <!-- フィードバック詳細（フィードバック中のみ表示） -->
@@ -1660,51 +1658,17 @@ document.getElementById('notation-english').addEventListener('click', () => {
 document.getElementById('export-btn').addEventListener('click', exportCSV);
 
 function activatePitchFeedback() {
-  if (!isStarted) return; // マイク未開始の場合は別途処理
-  // 基準音パネルが開いていれば閉じて停止
+  if (!isStarted) return;
   stopRefToneManual();
-  document.getElementById('ref-tone-panel').style.display = 'none';
   pracActive = true;
   document.getElementById('prac-start-btn').style.display = 'none';
   document.getElementById('prac-stop-btn').style.display = '';
   document.getElementById('feedback-detail').style.display = '';
-  // 音程フィードバック: 緑（アクティブ）、基準音: グレー（非アクティブ）
-  updateModeButtons('prac');
+  // 音程FB: 緑、音名グリッドの選択解除
+  document.getElementById('prac-start-btn').className = 'btn btn-success';
+  document.querySelectorAll('#ref-tone-grid button').forEach(b => b.classList.remove('active-green'));
   document.getElementById('prac-note-sub').textContent = t('auto_detect_msg');
   document.getElementById('ref-status').textContent = t('waiting');
-}
-
-function activateRefTone() {
-  // 音程フィードバックが動作中なら停止
-  if (pracActive) stopPractice();
-  const panel = document.getElementById('ref-tone-panel');
-  panel.style.display = '';
-  updateModeButtons('ref');
-}
-
-function updateModeButtons(mode) {
-  const pracBtn = document.getElementById('prac-start-btn');
-  const refBtn = document.getElementById('ref-tone-toggle');
-  if (mode === 'prac') {
-    pracBtn.className = 'btn btn-success';
-    pracBtn.style.opacity = '';
-    refBtn.className = 'btn';
-    refBtn.style.opacity = '';
-  } else if (mode === 'ref') {
-    refBtn.className = 'btn active-green';
-    refBtn.style.opacity = '';
-    pracBtn.className = 'btn';  // グレーボタン（C,D等と同じ色）
-    pracBtn.style.opacity = '';
-    pracBtn.style.display = '';
-    document.getElementById('prac-stop-btn').style.display = 'none';
-  } else {
-    pracBtn.className = 'btn btn-success';
-    pracBtn.style.opacity = '';
-    pracBtn.style.display = '';
-    refBtn.className = 'btn';
-    refBtn.style.opacity = '';
-    document.getElementById('prac-stop-btn').style.display = 'none';
-  }
 }
 
 document.getElementById('prac-start-btn').addEventListener('click', async () => {
@@ -1721,23 +1685,8 @@ document.getElementById('prac-start-btn').addEventListener('click', async () => 
 
 document.getElementById('prac-stop-btn').addEventListener('click', stopPractice);
 
-// ── 基準音選択 ───────────────────────────────────
+// ── 基準音選択（常時表示グリッド） ───────────────────────
 let refToneOsc = null, refToneGain = null, refToneMidi = null, refToneOct = 4;
-
-document.getElementById('ref-tone-toggle').addEventListener('click', () => {
-  const panel = document.getElementById('ref-tone-panel');
-  if (panel.style.display === 'none' || panel.style.display === '') {
-    const isOpening = panel.style.display === 'none';
-    if (isOpening) {
-      activateRefTone();
-    } else {
-      // パネル閉じる
-      panel.style.display = 'none';
-      stopRefToneManual();
-      updateModeButtons('none');
-    }
-  }
-});
 
 (function buildRefToneGrid() {
   const grid = document.getElementById('ref-tone-grid');
@@ -1750,8 +1699,20 @@ document.getElementById('ref-tone-toggle').addEventListener('click', () => {
     btn.style.padding = '8px 2px';
     btn.addEventListener('click', () => {
       const midi = (refToneOct + 1) * 12 + i;
-      if (refToneMidi === midi) { stopRefToneManual(); return; }
+      if (refToneMidi === midi) {
+        // 同じ音をタップ → 停止
+        stopRefToneManual();
+        // 音程FBボタンを緑に戻す
+        document.getElementById('prac-start-btn').className = 'btn btn-success';
+        return;
+      }
+      // 音程FBが動作中なら停止
+      if (pracActive) stopPractice();
       playRefToneManual(midi);
+      // 音程FBボタンをグレーに
+      document.getElementById('prac-start-btn').className = 'btn';
+      document.getElementById('prac-start-btn').style.display = '';
+      document.getElementById('prac-stop-btn').style.display = 'none';
     });
     grid.appendChild(btn);
   }
@@ -1763,7 +1724,6 @@ document.getElementById('ref-oct-down').addEventListener('click', () => {
 document.getElementById('ref-oct-up').addEventListener('click', () => {
   if (refToneOct < 6) { refToneOct++; document.getElementById('ref-oct-val').textContent = refToneOct; }
 });
-document.getElementById('ref-tone-stop-btn').addEventListener('click', stopRefToneManual);
 
 function playRefToneManual(midi) {
   if (!audioCtx) { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
@@ -2546,7 +2506,9 @@ function stopPractice() {
   refPlaying = false;
   refLingering = false;
   document.getElementById('feedback-detail').style.display = 'none';
-  updateModeButtons('none');
+  document.getElementById('prac-start-btn').className = 'btn btn-success';
+  document.getElementById('prac-start-btn').style.display = '';
+  document.getElementById('prac-stop-btn').style.display = 'none';
   document.getElementById('ref-status').textContent = '—';
   document.getElementById('prac-note-big').textContent = '—';
   document.getElementById('prac-note-big').style.color = '#58a6ff';
