@@ -4153,10 +4153,20 @@ function isBeatActive(beat) {
   return Math.floor(beat / 2) % 2 === 0;
 }
 
-let rhythmScheduledNodes = []; // 予約済みクリック音ノード
+let rhythmMasterGain = null; // クリック音のマスターGain（停止時にdisconnect）
+
+function ensureRhythmMaster() {
+  if (!audioCtx) return;
+  if (!rhythmMasterGain || rhythmMasterGain.context !== audioCtx) {
+    rhythmMasterGain = audioCtx.createGain();
+    rhythmMasterGain.gain.value = 1;
+    rhythmMasterGain.connect(audioCtx.destination);
+  }
+}
 
 function scheduleClick(time, isAccent, isSub) {
   if (!audioCtx) return;
+  ensureRhythmMaster();
   const osc = audioCtx.createOscillator();
   const g = audioCtx.createGain();
   osc.frequency.value = isAccent ? 1000 : (isSub ? 600 : 800);
@@ -4165,21 +4175,17 @@ function scheduleClick(time, isAccent, isSub) {
   g.gain.setValueAtTime(vol * masterVolume, time);
   g.gain.exponentialRampToValueAtTime(0.001, time + 0.025);
   osc.connect(g);
-  g.connect(audioCtx.destination);
+  g.connect(rhythmMasterGain); // マスター経由で出力
   osc.start(time);
   osc.stop(time + 0.03);
-  rhythmScheduledNodes.push({ osc, g, time });
-  // 古いノード（再生済み）を掃除
-  const now = audioCtx.currentTime;
-  rhythmScheduledNodes = rhythmScheduledNodes.filter(n => n.time + 0.05 > now);
 }
 
 function cancelScheduledClicks() {
-  rhythmScheduledNodes.forEach(({ osc, g }) => {
-    try { g.gain.cancelScheduledValues(0); g.gain.value = 0; } catch(e){}
-    try { osc.stop(0); } catch(e){}
-  });
-  rhythmScheduledNodes = [];
+  // マスターGainをdestinationから切断 → 全予約済み音が即消音
+  if (rhythmMasterGain) {
+    try { rhythmMasterGain.disconnect(); } catch(e){}
+    rhythmMasterGain = null;
+  }
 }
 
 function handleRhythmOnset(onsetTime) {
