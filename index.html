@@ -64,6 +64,8 @@ h3 { font-size: 13px; font-weight: 600; color: var(--text2); margin-bottom: 6px;
 .btn-danger { background: var(--danger); color: #fff; }
 .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text2); }
 .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+.btn.sel { background: var(--accent); color: #0d1117; font-weight: 600; }
+.btn.active-green { background: var(--accent2); color: #0d1117; font-weight: 600; }
 
 /* Cards */
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 16px; }
@@ -90,6 +92,13 @@ td { padding: 5px 10px; border-bottom: 1px solid var(--border); font-size: 13px;
 tr:last-child td { border-bottom: none; }
 .note-bar { height: 6px; background: var(--surface2); border-radius: 3px; position: relative; overflow: hidden; width: 80px; }
 .note-bar-fill { height: 100%; border-radius: 3px; position: absolute; top: 0; }
+
+/* ===== カード折りたたみ ===== */
+.card-header { display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none; }
+.card-header h2, .card-header h3 { margin: 0; pointer-events: none; }
+.card-toggle { font-size: 14px; color: var(--text2); transition: transform 0.2s; flex-shrink: 0; }
+.card.collapsed .card-body { display: none; }
+.card.collapsed .card-toggle { transform: rotate(-90deg); }
 
 /* Debug graph */
 #graph-wrap { margin-top: 0; }
@@ -150,7 +159,9 @@ tr:last-child td { border-bottom: none; }
 .rhythm-bpm-row input[type=number] { width: 64px; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface2); color: var(--text); font-size: 14px; text-align: center; }
 .rhythm-pattern-row { display: flex; gap: 6px; margin: 8px 0; }
 .rhythm-pattern-btn { flex: 1; padding: 8px 4px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface2); color: var(--text2); font-size: 12px; cursor: pointer; text-align: center; }
-.rhythm-pattern-btn.sel { background: var(--accent); color: #0d1117; border-color: var(--accent); font-weight: 600; }
+.rhythm-pattern-btn.sel, .rhythm-subdiv-btn.sel, .rhythm-meter-btn.sel { background: var(--accent); color: #0d1117; border-color: var(--accent); font-weight: 600; }
+.rhythm-meter-btn { flex: 1; padding: 8px 4px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface2); color: var(--text2); font-size: 12px; cursor: pointer; text-align: center; }
+.rhythm-subdiv-btn { flex: 1; padding: 8px 4px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface2); color: var(--text2); font-size: 12px; cursor: pointer; text-align: center; }
 
 /* ===== 合奏タブ ===== */
 .ens-root-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; margin: 8px 0; }
@@ -176,79 +187,101 @@ tr:last-child td { border-bottom: none; }
 #ens-et-display { font-size: 14px; text-align: center; }
 #ens-ji-display { font-size: 22px; font-weight: 700; text-align: center; margin: 4px 0; min-height: 30px; }
 #ens-ji-hint { font-size: 12px; color: var(--text2); text-align: center; min-height: 18px; }
+
+/* ===== チュートリアル ===== */
+#tutorial-overlay { position:fixed; top:0; left:0; width:100%; height:100%; z-index:9999; display:none; pointer-events:auto; }
+#tutorial-backdrop { position:absolute; top:0; left:0; width:100%; height:100%; }
+#tutorial-spotlight { position:absolute; border-radius:8px; box-shadow:0 0 0 9999px rgba(0,0,0,0.75); z-index:10000; pointer-events:none; transition:all 0.3s ease; }
+#tutorial-bubble { position:absolute; z-index:10001; background:var(--surface); border:1px solid var(--accent); border-radius:12px; padding:16px 20px; max-width:320px; min-width:220px; box-shadow:0 8px 32px rgba(0,0,0,0.5); }
+#tutorial-bubble::before { content:''; position:absolute; width:12px; height:12px; background:var(--surface); border-left:1px solid var(--accent); border-top:1px solid var(--accent); transform:rotate(45deg); }
+#tutorial-bubble.arrow-top::before { bottom:-7px; left:30px; transform:rotate(225deg); }
+#tutorial-bubble.arrow-bottom::before { top:-7px; left:30px; transform:rotate(45deg); }
+#tutorial-text { font-size:14px; line-height:1.6; color:var(--text); margin-bottom:12px; }
+#tutorial-step { font-size:11px; color:var(--text2); margin-bottom:8px; }
+.tutorial-btns { display:flex; gap:8px; justify-content:flex-end; }
+.tutorial-btns .btn { font-size:13px; padding:8px 16px; }
 </style>
 </head>
 <body>
 
 <div id="header">
-  <h1>🎵 音程練習アプリ <small style="font-size:0.45em;opacity:0.55;font-weight:400;">v2.0</small></h1>
+  <h1>🎵 <span data-i18n="app_title">音程練習アプリ</span> <small style="font-size:0.45em;opacity:0.55;font-weight:400;">v3.0</small></h1>
   <div id="a4-ctrl">
     A4 =
     <input type="range" id="a4-slider" min="415" max="446" value="442" step="1">
     <span id="a4-val">442 Hz</span>
   </div>
-  <button class="btn btn-primary" id="start-btn">マイク開始</button>
+  <button class="btn btn-primary" id="start-btn" data-i18n="mic_start">マイク開始</button>
 </div>
 
 <div id="tabs">
-  <div class="tab active" data-tab="measure">計測</div>
-  <div class="tab" data-tab="report">レポート</div>
-  <div class="tab" data-tab="ens">合奏</div>
-  <div class="tab" data-tab="attack">アタック</div>
-  <div class="tab" data-tab="challenge">課題</div>
-  <div class="tab" data-tab="rhythm">リズム</div>
-  <div class="tab" data-tab="settings">設定</div>
+  <div class="tab active" data-tab="measure" data-i18n="tab_tuner">チューナー</div>
+  <div class="tab" data-tab="rhythm" data-i18n="tab_rhythm">リズム</div>
+  <div class="tab" data-tab="ens" data-i18n="tab_harmony">ハーモニー</div>
+  <div class="tab" data-tab="attack" data-i18n="tab_attack">アタック</div>
+  <div class="tab" data-tab="report" data-i18n="tab_report">レポート</div>
+  <div class="tab" data-tab="settings" data-i18n="tab_settings">Settings</div>
 </div>
 
 <!-- 計測タブ -->
 <div class="panel active" id="panel-measure">
   <!-- 現在の音 -->
   <div class="card" id="now-display">
-    <h2>現在の音</h2>
+    <h2 data-i18n="current_note">現在の音</h2>
     <div id="now-note">—</div>
     <div id="now-cents">— ¢</div>
     <canvas id="tuner-canvas"></canvas>
     <div id="state-badge" class="silent">SILENT</div>
-    <div id="rms-display" style="font-size:13px;color:#58a6ff;margin-top:6px;font-family:monospace;">音量: —</div>
-    <!-- 音程フィードバック -->
-    <div style="margin-top:14px; display:flex; gap:10px; justify-content:center;">
-      <button class="btn btn-success" id="prac-start-btn">▶ 音程フィードバック</button>
-      <button class="btn btn-outline" id="prac-stop-btn" style="display:none">■ 停止</button>
+    <div id="rms-display" style="font-size:13px;color:#58a6ff;margin-top:6px;font-family:monospace;">—</div>
+    <!-- 音程フィードバック & 基準音 -->
+    <div style="margin-top:14px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
+      <button class="btn btn-success" id="prac-start-btn" data-i18n="pitch_feedback">▶ 音程フィードバック</button>
+      <button class="btn btn-outline" id="prac-stop-btn" style="display:none"data-i18n="stop">■ 停止</button>
+      <button class="btn" id="ref-tone-toggle" data-i18n="ref_tone_select">🎵 基準音選択</button>
+    </div>
+    <!-- 基準音選択パネル（トグル表示） -->
+    <div id="ref-tone-panel" style="display:none; margin-top:12px; border-top:1px solid var(--border); padding-top:12px;">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:6px" data-i18n="select_note">音名を選択（タップで再生/停止）</div>
+      <div id="ref-tone-grid" style="display:grid; grid-template-columns:repeat(6,1fr); gap:4px; margin-bottom:8px;"></div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
+        <span style="font-size:12px;color:var(--text2)" data-i18n="octave">オクターブ</span>
+        <button class="btn" id="ref-oct-down" style="padding:4px 10px">−</button>
+        <span id="ref-oct-val" style="font-size:14px;font-weight:600;min-width:20px;text-align:center">4</span>
+        <button class="btn" id="ref-oct-up" style="padding:4px 10px">+</button>
+        <button class="btn btn-outline" id="ref-tone-stop-btn" style="margin-left:auto;font-size:12px"data-i18n="stop">■ 停止</button>
+      </div>
     </div>
     <!-- フィードバック詳細（フィードバック中のみ表示） -->
     <div id="feedback-detail" style="display:none; margin-top:16px; text-align:center; border-top:1px solid var(--border); padding-top:14px;">
       <div id="prac-note-big" style="font-size:56px; font-weight:700; color:var(--accent); line-height:1; min-height:62px;">—</div>
-      <div id="prac-note-sub" style="font-size:13px; color:var(--text2); margin-top:4px; min-height:18px;">演奏すると音程を自動検出します</div>
+      <div id="prac-note-sub" style="font-size:13px; color:var(--text2); margin-top:4px; min-height:18px;" data-i18n="auto_detect_msg">演奏すると音程を自動検出します</div>
       <div id="prac-cents" style="font-size:24px; font-weight:600; margin-top:8px; min-height:30px;">— ¢</div>
       <canvas id="prac-tuner" style="width:100%; height:52px; border-radius:4px; margin:10px 0; display:block;"></canvas>
       <div id="ref-status" style="font-size:12px; color:var(--text2); min-height:16px;">—</div>
-      <p style="margin-top:10px; padding:6px 10px; background:#2d1f00; border:1px solid #d29922; border-radius:6px; font-size:11px; color:#d29922; line-height:1.5; text-align:left">
+      <p style="margin-top:10px; padding:6px 10px; background:#2d1f00; border:1px solid #d29922; border-radius:6px; font-size:11px; color:#d29922; line-height:1.5; text-align:left" data-i18n="earphone_warn">
         ⚠️ イヤホン推奨：スピーカー使用時はマイクが基準音を拾い誤検出することがあります
       </p>
     </div>
   </div>
   <!-- デバッググラフ -->
   <div class="card" id="graph-wrap">
-    <div class="flex mb12">
-      <h2 style="margin:0">デバッググラフ</h2>
-      <button class="btn btn-outline ml-auto" id="graph-toggle" style="font-size:12px">非表示</button>
-    </div>
+    <h2 data-i18n="debug_graph">デバッググラフ</h2>
     <canvas id="graph-canvas"></canvas>
   </div>
   <!-- 音程別記録 -->
   <div class="card">
-    <div class="flex mb12">
-      <h2 style="margin:0">音程別記録</h2>
-      <button class="btn btn-outline ml-auto" id="measure-reset-btn" style="font-size:12px">リセット</button>
+    <h2 data-i18n="note_records">音程別記録</h2>
+    <div style="margin-bottom:8px;text-align:right">
+      <button class="btn btn-outline" id="measure-reset-btn" style="font-size:12px" data-i18n="reset">リセット</button>
     </div>
     <div id="note-table-wrap">
       <table id="note-table">
         <thead><tr>
-          <th>音名</th>
-          <th>回数</th>
-          <th>平均偏差</th>
-          <th title="平均偏差が±1¢以内だった回数">命中🎯</th>
-          <th>分布</th>
+          <th data-i18n="th_note">音名</th>
+          <th data-i18n="th_count">回数</th>
+          <th data-i18n="th_avg_dev">平均偏差</th>
+          <th data-i18n="th_hits">命中🎯</th>
+          <th data-i18n="th_dist">分布</th>
         </tr></thead>
         <tbody id="note-tbody"></tbody>
       </table>
@@ -260,17 +293,17 @@ tr:last-child td { border-bottom: none; }
 <div class="panel" id="panel-report">
   <div class="card">
     <div id="report-header">
-      <h2 style="margin:0">音程偏差レポート</h2>
+      <h2 style="margin:0" data-i18n="pitch_report">音程偏差レポート</h2>
       <span class="text2 text-sm" id="report-summary"></span>
-      <button class="btn btn-outline ml-auto" id="export-btn">CSVエクスポート</button>
+      <button class="btn btn-outline ml-auto" id="export-btn" data-i18n="csv_export">CSVエクスポート</button>
     </div>
     <table id="report-table">
       <thead><tr>
-        <th>音名</th>
-        <th>回数</th>
-        <th>平均偏差 (¢)</th>
-        <th>傾向</th>
-        <th>偏差バー</th>
+        <th data-i18n="th_note">音名</th>
+        <th data-i18n="th_count">回数</th>
+        <th data-i18n="th_avg_dev_cent">平均偏差 (¢)</th>
+        <th data-i18n="th_trend">傾向</th>
+        <th data-i18n="th_dev_bar">偏差バー</th>
       </tr></thead>
       <tbody id="report-tbody"></tbody>
     </table>
@@ -280,152 +313,173 @@ tr:last-child td { border-bottom: none; }
   </div>
 </div>
 
-<!-- 合奏タブ -->
+<!-- ハーモニータブ -->
 <div class="panel" id="panel-ens">
+  <!-- ① ピッチ履歴 -->
   <div class="card">
-    <h2>コード選択</h2>
+    <h2 data-i18n="debug_graph">ピッチ履歴</h2>
+    <canvas class="sub-graph-canvas" id="ens-graph-canvas"></canvas>
+  </div>
+  <!-- ② コード選択 -->
+  <div class="card">
+    <h2 data-i18n="chord_select">コード選択</h2>
     <div class="ens-root-grid" id="ens-root-grid"></div>
     <div class="ens-type-row" id="ens-type-row"></div>
     <div id="ens-chord-display">—</div>
     <div class="ens-mode-row">
-      <button class="btn sel" id="btn-mode-full">コード全音再生</button>
-      <button class="btn" id="btn-mode-mute">自分の音を除く</button>
+      <button class="btn sel" id="btn-mode-full" data-i18n="chord_full">コード全音再生</button>
+      <button class="btn" id="btn-mode-mute" data-i18n="chord_mute">自分の音を除く</button>
     </div>
-    <button class="btn btn-primary" id="ens-play-btn">▶ コード再生</button>
+    <button class="btn btn-primary" id="ens-play-btn" style="width:100%;padding:12px;font-size:15px;font-weight:700" data-i18n="chord_play">▶ コード再生</button>
   </div>
+  <!-- ③ 音程モニター -->
   <div class="card">
-    <h2>音程モニター</h2>
+    <h2 data-i18n="pitch_monitor">音程モニター</h2>
     <div id="ens-now-note">—</div>
     <div id="ens-role-display">—</div>
     <canvas id="ens-tuner"></canvas>
-    <div id="ens-et-display">平均律偏差: — ¢</div>
+    <div id="ens-et-display" data-i18n="et_dev">平均律偏差: — ¢</div>
     <div id="ens-ji-display" style="color:var(--text2)">— ¢</div>
-    <div id="ens-ji-hint">純正調目標: — ¢</div>
-    <div style="font-size:11px;color:var(--text2);margin-top:8px">▼ オレンジの▼マーカーが純正調の目標位置。バーがマーカーに合えば純正調です。</div>
+    <div id="ens-ji-hint" data-i18n="ji_target">純正調目標: — ¢</div>
+    <div style="font-size:11px;color:var(--text2);margin-top:8px" data-i18n="ji_marker_hint">▼ オレンジの▼マーカーが純正調の目標位置。バーがマーカーに合えば純正調です。</div>
   </div>
+  <!-- ④ 音程課題 -->
   <div class="card">
-    <h2>純正調の傾向記録</h2>
-    <div id="ens-stats"><p class="text2 text-sm">コードを再生して音を吹くと記録されます。</p></div>
-    <button class="btn" id="ens-reset-btn" style="margin-top:12px;font-size:12px">リセット</button>
+    <h2 data-i18n="interval_task">音程課題</h2>
+    <div style="margin-bottom:6px;font-size:12px;color:var(--text2)" data-i18n="root_note">根音</div>
+    <div class="chal-root-grid" id="chal-root-grid"></div>
+    <div style="margin-bottom:6px;font-size:12px;color:var(--text2)" data-i18n="task_type">課題タイプ（複数選択可）</div>
+    <div class="chal-type-row" id="chal-type-row"></div>
+    <div style="display:flex;gap:8px;margin-top:10px;">
+      <button class="btn btn-primary" id="chal-start-btn" data-i18n="task_start">▶ 課題開始</button>
+      <button class="btn btn-danger" id="chal-stop-btn" style="display:none" data-i18n="stop">■ 停止</button>
+    </div>
+  </div>
+  <!-- 課題実行中カード -->
+  <div class="card" id="chal-active-card" style="display:none">
+    <div id="chal-task-display">—</div>
+    <div id="chal-result">—</div>
+    <div id="chal-cents-display">—</div>
+    <div style="margin-top:14px;text-align:center;font-size:12px;color:var(--text2)">
+      <span data-i18n="score_label">スコア</span>: <span id="chal-correct">0</span> / <span id="chal-total">0</span>
+    </div>
+  </div>
+  <!-- ⑤ ハーモニー可視化 -->
+  <div class="card" id="harmony-card">
+    <h2 data-i18n="harmony_viz">ハーモニー可視化</h2>
+    <p style="font-size:11px;color:var(--text2);margin:0 0 10px" data-i18n="harmony_desc">
+      玉の回転速度 = うなり周波数。止まると合っている！
+    </p>
+    <div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap;">
+      <div style="flex:0 0 auto;">
+        <div style="font-size:11px;color:var(--text2);text-align:center;margin-bottom:4px" data-i18n="phase_wheel">位相ホイール</div>
+        <canvas id="phase-wheel-canvas" width="200" height="200"
+                style="border-radius:50%;background:#0d1117;display:block;"></canvas>
+      </div>
+      <div style="flex:1 1 200px;min-width:180px;">
+        <div style="font-size:11px;color:var(--text2);margin-bottom:4px">
+          <span data-i18n="wave_zoom">波形（ズーム）</span>
+          <span style="margin-left:8px">
+            <span style="color:#3fb950">■</span> <span data-i18n="target">目標</span> &nbsp;
+            <span style="color:#58a6ff">■</span> <span data-i18n="player">演奏</span>
+          </span>
+        </div>
+        <canvas id="beat-wave-canvas" style="width:100%;height:90px;display:block;border-radius:4px;background:#0d1117;"></canvas>
+        <div style="font-size:11px;color:var(--text2);margin:8px 0 4px">
+          <span data-i18n="composite_wave">合成波・うなり包絡線</span>
+          <span style="margin-left:8px"><span style="color:#f0c040">■</span> <span data-i18n="composite">合成</span></span>
+        </div>
+        <canvas id="beat-envelope-canvas" style="width:100%;height:70px;display:block;border-radius:4px;background:#0d1117;"></canvas>
+        <div id="beat-info" style="text-align:center;font-size:13px;margin-top:8px;min-height:20px;color:var(--text2)">
+          <span data-i18n="play_chord_to_show">コードを再生して音を吹くと表示されます</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- ⑥ 純正調の傾向記録 -->
+  <div class="card">
+    <h2 data-i18n="ji_record">純正調の傾向記録</h2>
+    <div id="ens-stats"><p class="text2 text-sm" data-i18n="ji_record_empty">コードを再生して音を吹くと記録されます。</p></div>
+    <button class="btn" id="ens-reset-btn" style="margin-top:12px;font-size:12px" data-i18n="reset">リセット</button>
   </div>
 </div>
 
 <!-- アタックタブ -->
 <div class="panel" id="panel-attack">
   <div class="card" id="attack-graph-wrap">
-    <h2>デバッググラフ</h2>
+    <h2 data-i18n="debug_graph">デバッググラフ</h2>
     <canvas class="sub-graph-canvas" id="attack-graph-canvas"></canvas>
   </div>
   <div class="card">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-      <h2 style="margin:0">時間領域波形</h2>
-      <span style="font-size:11px;color:var(--text2)">0ms=立ち上がり ／ 緑=RMSエンベロープ</span>
+      <h2 style="margin:0" data-i18n="time_domain">時間領域波形</h2>
+      <span style="font-size:11px;color:var(--text2)" data-i18n="time_domain_desc">0ms=立ち上がり ／ 緑=RMSエンベロープ</span>
     </div>
     <canvas id="atk-time-canvas" style="width:100%;height:170px;display:block;border-radius:4px;background:#0d1117;"></canvas>
-    <div id="atk-info" style="font-size:12px;color:var(--text2);margin-top:6px;text-align:center;min-height:18px;">
+    <div id="atk-info" style="font-size:12px;color:var(--text2);margin-top:6px;text-align:center;min-height:18px;" data-i18n="blow_to_show">
       音を吹くとアタック波形が表示されます
     </div>
   </div>
   <div class="card">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-      <h2 style="margin:0">周波数スペクトル</h2>
-      <span style="font-size:11px;color:var(--text2)">倍音構造 ／ ▲=倍音位置</span>
+      <h2 style="margin:0" data-i18n="freq_spectrum">周波数スペクトル</h2>
+      <span style="font-size:11px;color:var(--text2)" data-i18n="freq_desc">倍音構造 ／ ▲=倍音位置</span>
     </div>
     <canvas id="atk-freq-canvas" style="width:100%;height:150px;display:block;border-radius:4px;background:#0d1117;"></canvas>
-  </div>
-</div>
-
-<!-- 課題タブ -->
-<div class="panel" id="panel-challenge">
-  <div class="card">
-    <h2>デバッググラフ</h2>
-    <canvas class="sub-graph-canvas" id="challenge-graph-canvas"></canvas>
-  </div>
-  <div class="card">
-    <h2>音程課題</h2>
-    <div style="margin-bottom:6px;font-size:12px;color:var(--text2)">根音</div>
-    <div class="chal-root-grid" id="chal-root-grid"></div>
-    <div style="margin-bottom:6px;font-size:12px;color:var(--text2)">課題タイプ（複数選択可）</div>
-    <div class="chal-type-row" id="chal-type-row"></div>
-    <div style="display:flex;gap:8px;margin-top:10px;">
-      <button class="btn btn-primary" id="chal-start-btn">▶ 課題開始</button>
-      <button class="btn btn-danger" id="chal-stop-btn" style="display:none">■ 停止</button>
-    </div>
-  </div>
-  <div class="card" id="chal-active-card" style="display:none">
-    <div id="chal-task-display">—</div>
-    <div id="chal-result">—</div>
-    <div id="chal-cents-display">—</div>
-    <div style="margin-top:14px;text-align:center;font-size:12px;color:var(--text2)">
-      スコア: <span id="chal-correct">0</span> / <span id="chal-total">0</span>
-    </div>
-  </div>
-  <!-- ハーモニー可視化カード（常に表示） -->
-  <div class="card" id="harmony-card">
-    <h2>ハーモニー可視化</h2>
-    <p style="font-size:11px;color:var(--text2);margin:0 0 10px">
-      玉の回転速度 = うなり周波数。止まると合っている！
-    </p>
-    <div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap;">
-      <!-- フェーズホイール -->
-      <div style="flex:0 0 auto;">
-        <div style="font-size:11px;color:var(--text2);text-align:center;margin-bottom:4px">位相ホイール</div>
-        <canvas id="phase-wheel-canvas" width="200" height="200"
-                style="border-radius:50%;background:#0d1117;display:block;"></canvas>
-      </div>
-      <!-- 波形エリア -->
-      <div style="flex:1 1 200px;min-width:180px;">
-        <div style="font-size:11px;color:var(--text2);margin-bottom:4px">
-          波形（ズーム）
-          <span style="margin-left:8px">
-            <span style="color:#3fb950">■</span> 目標 &nbsp;
-            <span style="color:#58a6ff">■</span> 演奏
-          </span>
-        </div>
-        <canvas id="beat-wave-canvas" style="width:100%;height:90px;display:block;border-radius:4px;background:#0d1117;"></canvas>
-        <div style="font-size:11px;color:var(--text2);margin:8px 0 4px">
-          合成波・うなり包絡線
-          <span style="margin-left:8px"><span style="color:#f0c040">■</span> 合成</span>
-        </div>
-        <canvas id="beat-envelope-canvas" style="width:100%;height:70px;display:block;border-radius:4px;background:#0d1117;"></canvas>
-        <div id="beat-info" style="text-align:center;font-size:13px;margin-top:8px;min-height:20px;color:var(--text2)">
-          課題を開始して音を吹くと表示されます
-        </div>
-      </div>
-    </div>
   </div>
 </div>
 
 <!-- リズムタブ -->
 <div class="panel" id="panel-rhythm">
   <div class="card">
-    <h2>デバッググラフ</h2>
+    <h2 data-i18n="debug_graph">デバッググラフ</h2>
     <canvas class="sub-graph-canvas" id="rhythm-graph-canvas"></canvas>
   </div>
   <div class="card">
-    <h2>リズム練習 <small style="font-size:0.6em;font-weight:400;color:var(--text2)">タンギングのある奏法向け</small></h2>
+    <h2><span data-i18n="rhythm_practice">リズム練習</span> <small style="font-size:0.6em;font-weight:400;color:var(--text2)" data-i18n="rhythm_desc">タンギングのある奏法向け</small></h2>
     <div class="rhythm-bpm-row">
       <span style="font-size:12px;color:var(--text2);white-space:nowrap">BPM</span>
       <input type="range" id="rhythm-bpm-slider" min="40" max="200" value="80" step="1">
       <input type="number" id="rhythm-bpm-num" min="40" max="200" value="80" step="1">
     </div>
-    <div style="font-size:12px;color:var(--text2);margin-bottom:4px">パターン</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:4px" data-i18n="meter">拍子</div>
     <div class="rhythm-pattern-row">
-      <button class="rhythm-pattern-btn sel" data-pattern="normal" id="rhythm-pat-normal">通常</button>
-      <button class="rhythm-pattern-btn" data-pattern="cr" id="rhythm-pat-cr">コール＆レスポンス</button>
+      <button class="rhythm-meter-btn" data-meter="2">2/4</button>
+      <button class="rhythm-meter-btn" data-meter="3">3/4</button>
+      <button class="rhythm-meter-btn sel" data-meter="4">4/4</button>
+      <button class="rhythm-meter-btn" data-meter="5">5/4</button>
+      <button class="rhythm-meter-btn" data-meter="6">6/8</button>
     </div>
-    <div style="display:flex;gap:8px;margin-top:10px;">
-      <button class="btn btn-primary" id="rhythm-start-btn">▶ 開始</button>
-      <button class="btn btn-danger" id="rhythm-stop-btn" style="display:none">■ 停止</button>
+    <div style="font-size:12px;color:var(--text2);margin:8px 0 4px" data-i18n="pattern">パターン</div>
+    <div class="rhythm-pattern-row">
+      <button class="rhythm-pattern-btn sel" data-pattern="normal" data-i18n="pat_normal">通常</button>
+      <button class="rhythm-pattern-btn" data-pattern="cr" data-i18n="pat_cr">コール＆レスポンス</button>
+    </div>
+    <div style="font-size:12px;color:var(--text2);margin:8px 0 4px" data-i18n="subdivision">音符の細かさ</div>
+    <div class="rhythm-pattern-row">
+      <button class="rhythm-subdiv-btn sel" data-subdiv="1" data-i18n="sub_quarter">四分</button>
+      <button class="rhythm-subdiv-btn" data-subdiv="2" data-i18n="sub_eighth">八分</button>
+      <button class="rhythm-subdiv-btn" data-subdiv="4" data-i18n="sub_sixteenth">十六分</button>
+      <button class="rhythm-subdiv-btn" data-subdiv="3" data-i18n="sub_triplet">三連符</button>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:14px;">
+      <button class="btn btn-success" id="rhythm-start-btn" style="flex:7;padding:14px;font-size:16px;font-weight:700" data-i18n="start">▶ 開始</button>
+      <button class="btn btn-danger" id="rhythm-stop-btn" style="flex:7;padding:14px;font-size:16px;font-weight:700;display:none" data-i18n="stop">■ 停止</button>
+      <button class="btn" id="tap-tempo-btn" style="flex:3;padding:14px;font-size:14px;font-weight:600">🎤 Tap</button>
     </div>
   </div>
   <div class="card">
-    <div id="rhythm-beat-display">—</div>
+    <!-- 振り子メトロノーム -->
+    <canvas id="pendulum-canvas" style="width:100%;height:100px;display:block;"></canvas>
+    <!-- ●○ ビートカウント -->
+    <div id="rhythm-beat-dots" style="display:flex;justify-content:center;gap:12px;font-size:28px;margin:8px 0;min-height:36px;letter-spacing:4px;">
+      ○○○○
+    </div>
     <div id="rhythm-timing-display">—</div>
     <div id="rhythm-latency-display" style="margin-top:8px;font-size:11px;color:var(--text2);text-align:center;min-height:16px;">—</div>
   </div>
   <div class="card">
-    <h2>タイミング履歴</h2>
+    <h2 data-i18n="timing_history">タイミング履歴</h2>
     <canvas id="rhythm-heatmap"></canvas>
   </div>
 </div>
@@ -433,78 +487,913 @@ tr:last-child td { border-bottom: none; }
 <!-- 設定タブ -->
 <div class="panel" id="panel-settings">
   <div class="card">
-    <h2>楽器設定</h2>
+    <h2 data-i18n="instrument_settings">楽器設定</h2>
     <div class="setting-row">
       <div class="setting-label">
-        <strong>楽器プリセット</strong>
-        <span>音程検出の周波数範囲を楽器に合わせて調整します</span>
+        <strong data-i18n="instrument_preset">楽器プリセット</strong>
+        <span data-i18n="instrument_desc">音程検出の周波数範囲を楽器に合わせて調整します</span>
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:6px;" id="instrument-btns">
-        <button class="btn sel" data-min="80"  data-max="3000">自動</button>
-        <button class="btn"     data-min="150" data-max="1000">トランペット</button>
-        <button class="btn"     data-min="55"  data-max="700" >トロンボーン</button>
-        <button class="btn"     data-min="55"  data-max="900" >ホルン</button>
-        <button class="btn"     data-min="80"  data-max="1500">声・フルート</button>
+        <button class="btn sel" data-min="80"  data-max="3000" data-i18n="inst_auto">自動</button>
+        <button class="btn"     data-min="150" data-max="1000" data-i18n="inst_trumpet">トランペット</button>
+        <button class="btn"     data-min="55"  data-max="700" data-i18n="inst_trombone">トロンボーン</button>
+        <button class="btn"     data-min="55"  data-max="900" data-i18n="inst_horn">ホルン</button>
+        <button class="btn"     data-min="80"  data-max="1500" data-i18n="inst_flute">声・フルート</button>
       </div>
     </div>
     <div class="setting-row" style="font-size:12px;color:var(--text2)">
-      <span>検出範囲: <span id="pitch-range-label">80 〜 3000 Hz</span></span>
+      <span><span data-i18n="detect_range">検出範囲</span>: <span id="pitch-range-label">80 〜 3000 Hz</span></span>
     </div>
   </div>
   <div class="card">
-    <h2>検出設定</h2>
+    <h2 data-i18n="detection_settings">検出設定</h2>
     <div class="setting-row">
       <div class="setting-label">
-        <strong>アタック除外時間</strong>
-        <span>音の立ち上がり（アタック）を無視する時間</span>
+        <strong data-i18n="attack_exclude">アタック除外時間</strong>
+        <span data-i18n="attack_exclude_desc">音の立ち上がり（アタック）を無視する時間</span>
       </div>
       <input type="range" id="attack-slider" min="50" max="400" value="150" step="10">
       <span class="setting-val" id="attack-val">150 ms</span>
     </div>
     <div class="setting-row">
       <div class="setting-label">
-        <strong>マイク感度</strong>
-        <span>音として反応する最低音量。小さい=感度高い（反応しやすい）、大きい=感度低い（ノイズ無視）</span>
+        <strong data-i18n="mic_sensitivity">マイク感度</strong>
+        <span data-i18n="mic_sensitivity_desc">音として反応する最低音量。小さい=感度高い（反応しやすい）、大きい=感度低い（ノイズ無視）</span>
       </div>
-      <input type="range" id="silence-slider" min="0.1" max="30" value="2" step="0.1">
-      <input type="number" id="silence-num" min="0.1" max="30" value="2" step="0.1"
+      <input type="range" id="silence-slider" min="0.1" max="30" value="0.3" step="0.1">
+      <input type="number" id="silence-num" min="0.1" max="30" value="0.3" step="0.1"
              style="width:60px;padding:4px 6px;border-radius:6px;border:1px solid var(--border);
                     background:var(--surface2);color:var(--text);font-size:13px;text-align:center;">
     </div>
     <div class="setting-row">
       <div class="setting-label">
-        <strong>無音終了ディレイ</strong>
-        <span>吹き終わり判定までの遅延</span>
+        <strong data-i18n="silence_delay">無音終了ディレイ</strong>
+        <span data-i18n="silence_delay_desc">吹き終わり判定までの遅延</span>
       </div>
       <input type="range" id="silend-slider" min="50" max="300" value="120" step="10">
       <span class="setting-val" id="silend-val">120 ms</span>
     </div>
   </div>
   <div class="card">
-    <h2>データ</h2>
+    <h2 data-i18n="playback_volume">再生音量</h2>
     <div class="setting-row">
       <div class="setting-label">
-        <strong>記録をリセット</strong>
-        <span>すべての音程記録を削除します</span>
+        <strong data-i18n="master_volume">マスター音量</strong>
+        <span data-i18n="master_volume_desc">コード再生・基準音・メトロノームの音量</span>
       </div>
-      <button class="btn btn-danger" id="reset-btn">リセット</button>
+      <input type="range" id="master-vol-slider" min="0" max="150" value="100" step="5">
+      <span class="setting-val" id="master-vol-val">100% (max)</span>
     </div>
   </div>
   <div class="card">
-    <h2>iPhone / モバイルで使う</h2>
-    <p class="text2" style="line-height:1.8; font-size:13px">
-      iPhoneでマイクを使うには <strong>HTTPS接続</strong> が必要です。<br>
-      このHTMLファイルを <strong>GitHub Pages</strong> で公開すると、SafariでもWeb Audio APIが動作します。<br>
-      手順: GitHubリポジトリに push → Settings → Pages → main ブランチを選択
-    </p>
+    <h2 data-i18n="notation_label">音名表記</h2>
+    <div class="setting-row">
+      <div class="setting-label">
+        <strong data-i18n="notation_style">表記方式</strong>
+        <span data-i18n="notation_desc">チューナーやコードの音名表記を切り替えます</span>
+      </div>
+      <div style="display:flex;gap:6px;">
+        <button class="btn sel" id="notation-english" data-i18n="english_notation">英語音名</button>
+        <button class="btn" id="notation-german" data-i18n="german_notation">ドイツ音名</button>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Languages</h2>
+    <div class="setting-row">
+      <div class="setting-label">
+        <strong>Languages</strong>
+        <span data-i18n="language_desc">表示言語を切り替えます</span>
+      </div>
+      <div style="display:flex;gap:6px;">
+        <button class="btn lang-btn sel" data-lang="ja" onclick="setLanguage('ja')">日本語</button>
+        <button class="btn lang-btn" data-lang="en" onclick="setLanguage('en')">English</button>
+        <button class="btn lang-btn" data-lang="zh" onclick="setLanguage('zh')">中文</button>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Help / Tutorial</h2>
+    <div class="setting-row">
+      <div class="setting-label">
+        <strong data-i18n="tutorial_overview">全体ガイド</strong>
+        <span data-i18n="tutorial_desc">アプリの使い方をステップごとに案内します</span>
+      </div>
+      <button class="btn btn-primary tutorial-launch-btn" data-tutorial="overview">▶</button>
+    </div>
+    <div class="setting-row">
+      <div class="setting-label"><strong data-i18n="tab_tuner">Tuner</strong></div>
+      <button class="btn btn-outline tutorial-launch-btn" data-tutorial="tuner">▶</button>
+    </div>
+    <div class="setting-row">
+      <div class="setting-label"><strong data-i18n="tab_rhythm">Rhythm</strong></div>
+      <button class="btn btn-outline tutorial-launch-btn" data-tutorial="rhythm">▶</button>
+    </div>
+    <div class="setting-row">
+      <div class="setting-label"><strong data-i18n="tab_harmony">Harmony</strong></div>
+      <button class="btn btn-outline tutorial-launch-btn" data-tutorial="harmony">▶</button>
+    </div>
+    <div class="setting-row">
+      <div class="setting-label"><strong data-i18n="tab_attack">Attack</strong></div>
+      <button class="btn btn-outline tutorial-launch-btn" data-tutorial="attack">▶</button>
+    </div>
+    <div class="setting-row">
+      <div class="setting-label"><strong data-i18n="tab_report">Report</strong></div>
+      <button class="btn btn-outline tutorial-launch-btn" data-tutorial="report">▶</button>
+    </div>
+  </div>
+  <div class="card">
+    <h2 data-i18n="data_section">データ</h2>
+    <div class="setting-row">
+      <div class="setting-label">
+        <strong data-i18n="reset_all">記録をリセット</strong>
+        <span data-i18n="reset_all_desc">すべての音程記録を削除します</span>
+      </div>
+      <button class="btn btn-danger" id="reset-btn" data-i18n="reset">リセット</button>
+    </div>
   </div>
 </div>
 
 <script>
+const I18N = {
+  "app_title": {
+    "ja": "音程練習アプリ",
+    "en": "Pitch Trainer",
+    "zh": "音程练习"
+  },
+  "tab_tuner": {
+    "ja": "チューナー",
+    "en": "Tuner",
+    "zh": "调音器"
+  },
+  "tab_report": {
+    "ja": "レポート",
+    "en": "Report",
+    "zh": "报告"
+  },
+  "tab_harmony": {
+    "ja": "ハーモニー",
+    "en": "Harmony",
+    "zh": "和声"
+  },
+  "tab_attack": {
+    "ja": "アタック",
+    "en": "Attack",
+    "zh": "起音"
+  },
+  "tab_rhythm": {
+    "ja": "リズム",
+    "en": "Rhythm",
+    "zh": "节奏"
+  },
+  "tab_settings": {
+    "ja": "Settings",
+    "en": "Settings",
+    "zh": "Settings"
+  },
+  "current_note": {
+    "ja": "ピッチ表示",
+    "en": "Pitch Display",
+    "zh": "音高显示"
+  },
+  "volume_label": {
+    "ja": "音量",
+    "en": "Volume",
+    "zh": "音量"
+  },
+  "pitch_feedback": {
+    "ja": "▶ 音程フィードバック",
+    "en": "▶ Pitch Feedback",
+    "zh": "▶ 音程反馈"
+  },
+  "stop": {
+    "ja": "■ 停止",
+    "en": "■ Stop",
+    "zh": "■ 停止"
+  },
+  "ref_tone_select": {
+    "ja": "🎵 基準音選択",
+    "en": "🎵 Ref. Tone",
+    "zh": "🎵 基准音"
+  },
+  "select_note": {
+    "ja": "音名を選択（タップで再生/停止）",
+    "en": "Select a note (tap to play/stop)",
+    "zh": "选择音名（点击播放/停止）"
+  },
+  "octave": {
+    "ja": "オクターブ",
+    "en": "Octave",
+    "zh": "八度"
+  },
+  "auto_detect_msg": {
+    "ja": "演奏すると音程を自動検出します",
+    "en": "Play to auto-detect pitch",
+    "zh": "演奏后自动检测音程"
+  },
+  "earphone_warn": {
+    "ja": "⚠️ イヤホン推奨：スピーカー使用時はマイクが基準音を拾い誤検出することがあります",
+    "en": "⚠️ Earphones recommended: speakers may cause false detection via microphone",
+    "zh": "⚠️ 建议使用耳机：扬声器可能导致麦克风误检测"
+  },
+  "debug_graph": {
+    "ja": "ピッチ履歴",
+    "en": "Pitch History",
+    "zh": "音高历史"
+  },
+  "note_records": {
+    "ja": "音程別記録",
+    "en": "Note Records",
+    "zh": "音程记录"
+  },
+  "reset": {
+    "ja": "リセット",
+    "en": "Reset",
+    "zh": "重置"
+  },
+  "th_note": {
+    "ja": "音名",
+    "en": "Note",
+    "zh": "音名"
+  },
+  "th_count": {
+    "ja": "回数",
+    "en": "Count",
+    "zh": "次数"
+  },
+  "th_avg_dev": {
+    "ja": "平均偏差",
+    "en": "Avg Dev",
+    "zh": "平均偏差"
+  },
+  "th_hits": {
+    "ja": "命中🎯",
+    "en": "Hits🎯",
+    "zh": "命中🎯"
+  },
+  "th_dist": {
+    "ja": "分布",
+    "en": "Dist.",
+    "zh": "分布"
+  },
+  "pitch_report": {
+    "ja": "音程偏差レポート",
+    "en": "Pitch Deviation Report",
+    "zh": "音程偏差报告"
+  },
+  "csv_export": {
+    "ja": "CSVエクスポート",
+    "en": "CSV Export",
+    "zh": "CSV导出"
+  },
+  "th_avg_dev_cent": {
+    "ja": "平均偏差 (¢)",
+    "en": "Avg Dev (¢)",
+    "zh": "平均偏差 (¢)"
+  },
+  "th_trend": {
+    "ja": "傾向",
+    "en": "Trend",
+    "zh": "趋势"
+  },
+  "th_dev_bar": {
+    "ja": "偏差バー",
+    "en": "Dev Bar",
+    "zh": "偏差条"
+  },
+  "chord_select": {
+    "ja": "コード選択",
+    "en": "Chord Select",
+    "zh": "和弦选择"
+  },
+  "chord_full": {
+    "ja": "コード全音再生",
+    "en": "Full Chord",
+    "zh": "全音播放"
+  },
+  "chord_mute": {
+    "ja": "自分の音を除く",
+    "en": "Mute My Note",
+    "zh": "去除我的音"
+  },
+  "chord_play": {
+    "ja": "▶ コード再生",
+    "en": "▶ Play Chord",
+    "zh": "▶ 播放和弦"
+  },
+  "chord_stop": {
+    "ja": "■ 停止",
+    "en": "■ Stop",
+    "zh": "■ 停止"
+  },
+  "interval_task": {
+    "ja": "音程課題",
+    "en": "Interval Training",
+    "zh": "音程训练"
+  },
+  "root_note": {
+    "ja": "根音",
+    "en": "Root",
+    "zh": "根音"
+  },
+  "task_type": {
+    "ja": "課題タイプ（複数選択可）",
+    "en": "Task Type (multi-select)",
+    "zh": "训练类型（可多选）"
+  },
+  "task_start": {
+    "ja": "▶ 課題開始",
+    "en": "▶ Start",
+    "zh": "▶ 开始"
+  },
+  "score_label": {
+    "ja": "スコア",
+    "en": "Score",
+    "zh": "分数"
+  },
+  "harmony_viz": {
+    "ja": "ハーモニー可視化",
+    "en": "Harmony Visualization",
+    "zh": "和声可视化"
+  },
+  "harmony_desc": {
+    "ja": "玉の回転速度 = うなり周波数。止まると合っている！",
+    "en": "Ball speed = beat frequency. Stops when in tune!",
+    "zh": "球的旋转速度 = 拍频。停止时音准正确！"
+  },
+  "phase_wheel": {
+    "ja": "位相ホイール",
+    "en": "Phase Wheel",
+    "zh": "相位轮"
+  },
+  "wave_zoom": {
+    "ja": "波形（ズーム）",
+    "en": "Waveform (zoom)",
+    "zh": "波形（放大）"
+  },
+  "target": {
+    "ja": "目標",
+    "en": "Target",
+    "zh": "目标"
+  },
+  "player": {
+    "ja": "演奏",
+    "en": "Player",
+    "zh": "演奏"
+  },
+  "composite_wave": {
+    "ja": "合成波・うなり包絡線",
+    "en": "Composite / Beat Envelope",
+    "zh": "合成波·拍包络"
+  },
+  "composite": {
+    "ja": "合成",
+    "en": "Composite",
+    "zh": "合成"
+  },
+  "pitch_monitor": {
+    "ja": "音程モニター",
+    "en": "Pitch Monitor",
+    "zh": "音程监视器"
+  },
+  "et_dev": {
+    "ja": "平均律偏差",
+    "en": "ET Deviation",
+    "zh": "平均律偏差"
+  },
+  "ji_target": {
+    "ja": "純正調目標",
+    "en": "JI Target",
+    "zh": "纯律目标"
+  },
+  "ji_marker_hint": {
+    "ja": "▼ オレンジの▼マーカーが純正調の目標位置。バーがマーカーに合えば純正調です。",
+    "en": "▼ Orange ▼ markers show JI target. Match the bar to the marker for just intonation.",
+    "zh": "▼ 橙色▼标记为纯律目标位置。条形对齐标记即为纯律。"
+  },
+  "ji_record": {
+    "ja": "純正調の傾向記録",
+    "en": "JI Tendency Records",
+    "zh": "纯律趋势记录"
+  },
+  "ji_record_empty": {
+    "ja": "コードを再生して音を吹くと記録されます。",
+    "en": "Play a chord and blow to start recording.",
+    "zh": "播放和弦并吹奏即可开始记录。"
+  },
+  "play_chord_to_show": {
+    "ja": "コードを再生して音を吹くと表示されます",
+    "en": "Play a chord and blow to see visualization",
+    "zh": "播放和弦并吹奏即可查看可视化"
+  },
+  "time_domain": {
+    "ja": "時間領域波形",
+    "en": "Time Domain Waveform",
+    "zh": "时域波形"
+  },
+  "time_domain_desc": {
+    "ja": "0ms=立ち上がり ／ 緑=RMSエンベロープ",
+    "en": "0ms=onset / green=RMS envelope",
+    "zh": "0ms=起音 / 绿=RMS包络"
+  },
+  "blow_to_show": {
+    "ja": "音を吹くとアタック波形が表示されます",
+    "en": "Blow to see the attack waveform",
+    "zh": "吹奏即可查看起音波形"
+  },
+  "freq_spectrum": {
+    "ja": "周波数スペクトル",
+    "en": "Frequency Spectrum",
+    "zh": "频率频谱"
+  },
+  "freq_desc": {
+    "ja": "倍音構造 ／ ▲=倍音位置",
+    "en": "Harmonic structure / ▲=harmonic position",
+    "zh": "泛音结构 / ▲=泛音位置"
+  },
+  "rhythm_practice": {
+    "ja": "リズム練習",
+    "en": "Rhythm Practice",
+    "zh": "节奏练习"
+  },
+  "rhythm_desc": {
+    "ja": "タンギングのある奏法向け",
+    "en": "For tongued articulation",
+    "zh": "适用于吐音奏法"
+  },
+  "tap_btn": {
+    "ja": "🎤 Tap",
+    "en": "🎤 Tap",
+    "zh": "🎤 Tap"
+  },
+  "meter": {
+    "ja": "拍子",
+    "en": "Meter",
+    "zh": "拍号"
+  },
+  "pattern": {
+    "ja": "パターン",
+    "en": "Pattern",
+    "zh": "模式"
+  },
+  "pat_normal": {
+    "ja": "通常",
+    "en": "Normal",
+    "zh": "普通"
+  },
+  "pat_cr": {
+    "ja": "コール＆レスポンス",
+    "en": "Call & Response",
+    "zh": "呼应"
+  },
+  "subdivision": {
+    "ja": "音符の細かさ",
+    "en": "Subdivision",
+    "zh": "音符细分"
+  },
+  "sub_quarter": {
+    "ja": "四分",
+    "en": "Quarter",
+    "zh": "四分"
+  },
+  "sub_eighth": {
+    "ja": "八分",
+    "en": "Eighth",
+    "zh": "八分"
+  },
+  "sub_sixteenth": {
+    "ja": "十六分",
+    "en": "16th",
+    "zh": "十六分"
+  },
+  "sub_triplet": {
+    "ja": "三連符",
+    "en": "Triplet",
+    "zh": "三连音"
+  },
+  "start": {
+    "ja": "▶ 開始",
+    "en": "▶ Start",
+    "zh": "▶ 开始"
+  },
+  "timing_history": {
+    "ja": "タイミング履歴",
+    "en": "Timing History",
+    "zh": "时间历史"
+  },
+  "instrument_settings": {
+    "ja": "楽器設定",
+    "en": "Instrument",
+    "zh": "乐器设置"
+  },
+  "instrument_preset": {
+    "ja": "楽器プリセット",
+    "en": "Instrument Preset",
+    "zh": "乐器预设"
+  },
+  "instrument_desc": {
+    "ja": "音程検出の周波数範囲を楽器に合わせて調整します",
+    "en": "Adjust frequency range for your instrument",
+    "zh": "根据乐器调整检测频率范围"
+  },
+  "inst_auto": {
+    "ja": "自動",
+    "en": "Auto",
+    "zh": "自动"
+  },
+  "inst_trumpet": {
+    "ja": "トランペット",
+    "en": "Trumpet",
+    "zh": "小号"
+  },
+  "inst_trombone": {
+    "ja": "トロンボーン",
+    "en": "Trombone",
+    "zh": "长号"
+  },
+  "inst_horn": {
+    "ja": "ホルン",
+    "en": "Horn",
+    "zh": "圆号"
+  },
+  "inst_flute": {
+    "ja": "声・フルート",
+    "en": "Voice/Flute",
+    "zh": "声乐·长笛"
+  },
+  "detection_settings": {
+    "ja": "検出設定",
+    "en": "Detection",
+    "zh": "检测设置"
+  },
+  "attack_exclude": {
+    "ja": "アタック除外時間",
+    "en": "Attack Exclusion",
+    "zh": "起音排除时间"
+  },
+  "attack_exclude_desc": {
+    "ja": "音の立ち上がり（アタック）を無視する時間",
+    "en": "Time to ignore the onset (attack) of a note",
+    "zh": "忽略音头（起音）的时间"
+  },
+  "mic_sensitivity": {
+    "ja": "マイク感度",
+    "en": "Mic Sensitivity",
+    "zh": "麦克风灵敏度"
+  },
+  "mic_sensitivity_desc": {
+    "ja": "音として反応する最低音量。小さい=感度高い（反応しやすい）、大きい=感度低い（ノイズ無視）",
+    "en": "Min volume to detect. Lower=more sensitive, Higher=ignores noise",
+    "zh": "检测的最低音量。越小越灵敏，越大越忽略噪音"
+  },
+  "silence_delay": {
+    "ja": "無音終了ディレイ",
+    "en": "Silence End Delay",
+    "zh": "静音结束延迟"
+  },
+  "silence_delay_desc": {
+    "ja": "吹き終わり判定までの遅延",
+    "en": "Delay before end-of-note detection",
+    "zh": "判定吹奏结束的延迟"
+  },
+  "playback_volume": {
+    "ja": "再生音量",
+    "en": "Playback Volume",
+    "zh": "播放音量"
+  },
+  "master_volume": {
+    "ja": "マスター音量",
+    "en": "Master Volume",
+    "zh": "主音量"
+  },
+  "master_volume_desc": {
+    "ja": "コード再生・基準音・メトロノームの音量",
+    "en": "Volume for chords, reference tones, metronome",
+    "zh": "和弦·基准音·节拍器的音量"
+  },
+  "notation_label": {
+    "ja": "音名表記",
+    "en": "Notation",
+    "zh": "音名标记"
+  },
+  "notation_style": {
+    "ja": "表記方式",
+    "en": "Notation Style",
+    "zh": "标记方式"
+  },
+  "notation_desc": {
+    "ja": "チューナーやコードの音名表記を切り替えます",
+    "en": "Switch note name display for tuner and chords",
+    "zh": "切换调音器和和弦的音名显示"
+  },
+  "german_notation": {
+    "ja": "ドイツ音名",
+    "en": "German",
+    "zh": "德式音名"
+  },
+  "english_notation": {
+    "ja": "英語音名",
+    "en": "English",
+    "zh": "英式音名"
+  },
+  "data_section": {
+    "ja": "データ",
+    "en": "Data",
+    "zh": "数据"
+  },
+  "reset_all": {
+    "ja": "記録をリセット",
+    "en": "Reset Records",
+    "zh": "重置记录"
+  },
+  "reset_all_desc": {
+    "ja": "すべての音程記録を削除します",
+    "en": "Delete all pitch records",
+    "zh": "删除所有音程记录"
+  },
+  "mic_start": {
+    "ja": "マイク開始",
+    "en": "Start Mic",
+    "zh": "开始麦克风"
+  },
+  "mic_stop": {
+    "ja": "停止",
+    "en": "Stop",
+    "zh": "停止"
+  },
+  "mic_denied": {
+    "ja": "マイクへのアクセスが拒否されました",
+    "en": "Microphone access denied",
+    "zh": "麦克风访问被拒绝"
+  },
+  "waiting": {
+    "ja": "待機中…",
+    "en": "Waiting…",
+    "zh": "等待中…"
+  },
+  "ref_confirm": {
+    "ja": "基準音確認中",
+    "en": "Confirming ref. tone",
+    "zh": "确认基准音中"
+  },
+  "sec_stop": {
+    "ja": "秒後に停止",
+    "en": "sec to stop",
+    "zh": "秒后停止"
+  },
+  "play_next": {
+    "ja": "次の音を吹いてください",
+    "en": "Play the next note",
+    "zh": "请吹下一个音"
+  },
+  "detecting": {
+    "ja": "検出中",
+    "en": "Detecting",
+    "zh": "检测中"
+  },
+  "silent": {
+    "ja": "無音",
+    "en": "Silent",
+    "zh": "静音"
+  },
+  "confirm_reset": {
+    "ja": "全記録をリセットしますか？",
+    "en": "Reset all records?",
+    "zh": "重置所有记录？"
+  },
+  "trend_good": {
+    "ja": "良好",
+    "en": "Good",
+    "zh": "良好"
+  },
+  "trend_high": {
+    "ja": "高め",
+    "en": "Sharp",
+    "zh": "偏高"
+  },
+  "trend_low": {
+    "ja": "低め",
+    "en": "Flat",
+    "zh": "偏低"
+  },
+  "total_plays": {
+    "ja": "総演奏数",
+    "en": "Total plays",
+    "zh": "总演奏数"
+  },
+  "note_types": {
+    "ja": "種類の音",
+    "en": "note types",
+    "zh": "种音"
+  },
+  "audio_error": {
+    "ja": "音声エラー",
+    "en": "Audio error",
+    "zh": "音频错误"
+  },
+  "audio_unsupported": {
+    "ja": "音声再生に対応していません",
+    "en": "Audio playback not supported",
+    "zh": "不支持音频播放"
+  },
+  "mic_needed": {
+    "ja": "マイクが必要です",
+    "en": "Microphone required",
+    "zh": "需要麦克风"
+  },
+  "mic_error": {
+    "ja": "マイクエラー",
+    "en": "Mic error",
+    "zh": "麦克风错误"
+  },
+  "latency_measuring": {
+    "ja": "遅延補正: 計測中…",
+    "en": "Latency: measuring…",
+    "zh": "延迟补偿：测量中…"
+  },
+  "latency_done": {
+    "ja": "遅延補正",
+    "en": "Latency",
+    "zh": "延迟补偿"
+  },
+  "latency_auto": {
+    "ja": "自動補正済み",
+    "en": "auto-corrected",
+    "zh": "已自动校正"
+  },
+  "recent_beats": {
+    "ja": "直近16拍",
+    "en": "Last 16 beats",
+    "zh": "最近16拍"
+  },
+  "timing_chart_title": {
+    "ja": "タイミング偏差 (ms) — 上=早い / 下=遅い",
+    "en": "Timing deviation (ms) — top=early / bottom=late",
+    "zh": "时间偏差 (ms) — 上=提前 / 下=延迟"
+  },
+  "in_tune": {
+    "ja": "✓ 合っている",
+    "en": "✓ In tune",
+    "zh": "✓ 准确"
+  },
+  "higher": {
+    "ja": "▲ 高い",
+    "en": "▲ Sharp",
+    "zh": "▲ 偏高"
+  },
+  "lower": {
+    "ja": "▼ 低い",
+    "en": "▼ Flat",
+    "zh": "▼ 偏低"
+  },
+  "no_beats": {
+    "ja": "うなりなし",
+    "en": "No beats",
+    "zh": "无拍"
+  },
+  "beats_hz": {
+    "ja": "うなり",
+    "en": "Beats",
+    "zh": "拍频"
+  },
+  "almost_in_tune": {
+    "ja": "ほぼ合っています",
+    "en": "Almost in tune",
+    "zh": "几乎准确"
+  },
+  "beat_per_sec": {
+    "ja": "秒に1回",
+    "en": "per second",
+    "zh": "秒一次"
+  },
+  "blow_root": {
+    "ja": "を吹いてください",
+    "en": " — play this note",
+    "zh": " — 请吹此音"
+  },
+  "interval_up": {
+    "ja": "根音から上",
+    "en": "above root",
+    "zh": "根音上方"
+  },
+  "root_playing": {
+    "ja": "が鳴っています",
+    "en": "is playing",
+    "zh": "正在播放"
+  },
+  "deviation": {
+    "ja": "偏差",
+    "en": "Dev",
+    "zh": "偏差"
+  },
+  "ji_dev_label": {
+    "ja": "純正調偏差",
+    "en": "JI Deviation",
+    "zh": "纯律偏差"
+  },
+  "ji_target_et": {
+    "ja": "純正調目標: 平均律より",
+    "en": "JI target: from ET",
+    "zh": "纯律目标：与平均律差"
+  },
+  "ji_accurate": {
+    "ja": "✓ 正確",
+    "en": "✓ Accurate",
+    "zh": "✓ 准确"
+  },
+  "ji_sharp": {
+    "ja": "▲ 高め",
+    "en": "▲ Sharp",
+    "zh": "▲ 偏高"
+  },
+  "ji_flat": {
+    "ja": "▼ 低め",
+    "en": "▼ Flat",
+    "zh": "▼ 偏低"
+  },
+  "measurements": {
+    "ja": "測定",
+    "en": "Measurements",
+    "zh": "测量"
+  },
+  "frames": {
+    "ja": "フレーム",
+    "en": "frames",
+    "zh": "帧"
+  },
+  "onset": {
+    "ja": "onset",
+    "en": "onset",
+    "zh": "onset"
+  },
+  "report_title": {
+    "ja": "全音域ピッチ偏差マップ",
+    "en": "Full Range Pitch Deviation Map",
+    "zh": "全音域音程偏差图"
+  },
+  "tap_listening": {
+    "ja": "🎤 聴取中…",
+    "en": "🎤 Listening…",
+    "zh": "🎤 听取中…"
+  },
+  "first_n_auto": {
+    "ja": "音で自動計測",
+    "en": "notes auto-calibrate",
+    "zh": "音自动校准"
+  },
+  "tutorial_desc": {
+    "ja": "アプリの使い方をステップごとに案内します",
+    "en": "Step-by-step guide to using the app",
+    "zh": "逐步指导如何使用应用程序"
+  },
+  "tutorial_overview": {
+    "ja": "全体ガイド",
+    "en": "Overview",
+    "zh": "总览"
+  },
+  "detect_range": {
+    "ja": "検出範囲",
+    "en": "Range",
+    "zh": "检测范围"
+  },
+  "language": {
+    "ja": "言語",
+    "en": "Language",
+    "zh": "语言"
+  },
+  "language_desc": {
+    "ja": "表示言語を切り替えます",
+    "en": "Switch display language",
+    "zh": "切换显示语言"
+  }
+};
+let currentLang = localStorage.getItem('app-lang') || 'ja';
+function t(key) { return (I18N[key] && I18N[key][currentLang]) || (I18N[key] && I18N[key]['ja']) || key; }
+function applyLanguage() {
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.dataset.i18n;
+    const attr = el.dataset.i18nAttr;
+    if (attr) { el.setAttribute(attr, t(key)); }
+    else { el.textContent = t(key); }
+  });
+  // 言語セレクタのハイライト更新
+  document.querySelectorAll('.lang-btn').forEach(b => b.classList.toggle('sel', b.dataset.lang === currentLang));
+}
+function setLanguage(lang) {
+  currentLang = lang;
+  localStorage.setItem('app-lang', lang);
+  applyLanguage();
+  // 音名表記も再適用
+  if (typeof applyNotation === 'function') applyNotation();
+}
+
 // ============================================================
 // 定数・設定
 // ============================================================
-const GERMAN = ['C','Cis','D','Es','E','F','Fis','G','As','A','B','H'];
+const GERMAN  = ['C','Cis','D','Es','E','F','Fis','G','As','A','B','H'];
+const ENGLISH = ['C','C#','D','Eb','E','F','F#','G','Ab','A','Bb','B'];
+let useGerman = false;         // true=ドイツ音名, false=英語音名
+let masterVolume = 2.0;        // マスター音量倍率 (0〜3.0)
 const MIDI_MIN = 40; // E2 (低声域・管楽器低音対応)
 const MIDI_MAX = 84; // C6
 
@@ -517,7 +1406,7 @@ function midiToCents(midiFloat, midiInt) { return (midiFloat - midiInt) * 100; }
 
 function noteLabel(midi) {
   const oct = Math.floor(midi / 12) - 1;
-  const name = GERMAN[midi % 12];
+  const name = (useGerman ? GERMAN : ENGLISH)[midi % 12];
   return name + oct;
 }
 
@@ -572,7 +1461,7 @@ let lastSoundTime = null;
 let currentMidi = null;
 let currentCentsArr = [];
 let ATTACK_MS = 150;
-let SILENCE_THRESH = 2; // 感度高め（機種差対応）。設定スライダーで変更可
+let SILENCE_THRESH = 0.3; // 高感度デフォルト。設定スライダーで変更可
 let smoothedRms = 0; // EMAスムージング済みRMS
 let SILENCE_END_MS = 120;
 let PITCH_MIN_HZ = 80;        // 検出周波数下限（楽器プリセットで変更）
@@ -602,7 +1491,7 @@ let tunerLastTs  = null;  // 前フレームのタイムスタンプ
 let attackCapturing     = false;
 let attackCaptureFrames = [];   // pre-roll + post-attack frames [{td, fd}]
 let attackCaptureCount  = 0;    // post-attack frame count
-const PRE_ROLL_FRAMES       = 3; // アタック前 3×50ms = 150ms
+const PRE_ROLL_FRAMES       = 5; // アタック前 5×50ms = 250ms
 const ATTACK_CAPTURE_FRAMES = 14; // アタック後 14×50ms = 700ms
 let preRollBuf = [];             // 直近 PRE_ROLL_FRAMES フレームのリングバッファ
 let attackCurrentSnap = null;   // { timeFull, freqData, sampleRate, label, capturedMidi, preRollMs }
@@ -638,6 +1527,10 @@ let chalWaiting = true;           // 答え待ち中
 let rhythmActive = false;
 let rhythmBpm = 80;
 let rhythmPattern = 'normal'; // 'normal' | 'cr'
+let rhythmSubdiv = 1;         // 1=四分, 2=八分, 4=十六分, 3=三連符
+let rhythmMeter = 4;          // 拍子（1小節の拍数）
+let tapTempoTimes = [];       // タップテンポ用タイムスタンプ
+let pendulumRAF = null;       // 振り子アニメーションRAF
 let rhythmBeatCount = 0;
 let rhythmNextBeatTime = 0.0;
 let rhythmScheduleTimer = null;
@@ -680,8 +1573,8 @@ document.querySelectorAll('.tab').forEach(tab => {
     document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
     tab.classList.add('active');
     document.getElementById('panel-' + tab.dataset.tab).classList.add('active');
-    // 課題タブに切り替えたら可視化ループ開始
-    if (tab.dataset.tab === 'challenge') startHarmonyViz();
+    // ハーモニータブに切り替えたら可視化ループ開始
+    if (tab.dataset.tab === 'ens') startHarmonyViz();
     // アタックタブ: 波形可視化ループ開始/停止
     if (tab.dataset.tab === 'attack') startAttackViz();
     else stopAttackViz();
@@ -717,14 +1610,8 @@ document.getElementById('silend-slider').addEventListener('input', function() {
   document.getElementById('silend-val').textContent = SILENCE_END_MS + ' ms';
 });
 
-document.getElementById('graph-toggle').addEventListener('click', function() {
-  graphVisible = !graphVisible;
-  document.getElementById('graph-canvas').style.display = graphVisible ? '' : 'none';
-  this.textContent = graphVisible ? '非表示' : '表示';
-});
-
 function resetAllData() {
-  if (!confirm('全記録をリセットしますか？')) return;
+  if (!confirm(t('confirm_reset'))) return;
   for (let m = MIDI_MIN; m <= MIDI_MAX; m++) {
     noteData[m] = { count: 0, sumCents: 0, centsArr: [], hitCount: 0 };
   }
@@ -734,26 +1621,197 @@ function resetAllData() {
 document.getElementById('reset-btn').addEventListener('click', resetAllData);
 document.getElementById('measure-reset-btn').addEventListener('click', resetAllData);
 
+// マスター音量（スライダー100% = gain 2.0倍、150% = gain 3.0倍）
+document.getElementById('master-vol-slider').addEventListener('input', function() {
+  masterVolume = (+this.value / 100) * 2.0;
+  document.getElementById('master-vol-val').textContent = this.value + '%';
+});
+
+// 音名表記切替
+function applyNotation() {
+  document.getElementById('notation-german').classList.toggle('sel', useGerman);
+  document.getElementById('notation-english').classList.toggle('sel', !useGerman);
+  const names = useGerman ? GERMAN : ENGLISH;
+  // 基準音グリッドのラベル更新
+  document.querySelectorAll('#ref-tone-grid button').forEach(btn => {
+    btn.textContent = names[+btn.dataset.note];
+  });
+  // 課題の根音グリッド再構築
+  document.querySelectorAll('#chal-root-grid .chal-btn').forEach(btn => {
+    const midi = +btn.dataset.midi;
+    btn.textContent = names[midi % 12] + (Math.floor(midi / 12) - 1);
+  });
+  // 合奏の根音グリッド再構築
+  document.querySelectorAll('#ens-root-grid .ens-root-btn').forEach(btn => {
+    const midi = +btn.dataset.midi;
+    btn.textContent = names[midi % 12] + (Math.floor(midi / 12) - 1);
+  });
+  // 音程テーブル・レポート再描画
+  if (typeof renderNoteTable === 'function') renderNoteTable();
+  if (typeof renderReport === 'function') renderReport();
+}
+document.getElementById('notation-german').addEventListener('click', () => {
+  useGerman = true; applyNotation();
+});
+document.getElementById('notation-english').addEventListener('click', () => {
+  useGerman = false; applyNotation();
+});
+
 document.getElementById('export-btn').addEventListener('click', exportCSV);
+
+function activatePitchFeedback() {
+  if (!isStarted) return; // マイク未開始の場合は別途処理
+  // 基準音パネルが開いていれば閉じて停止
+  stopRefToneManual();
+  document.getElementById('ref-tone-panel').style.display = 'none';
+  pracActive = true;
+  document.getElementById('prac-start-btn').style.display = 'none';
+  document.getElementById('prac-stop-btn').style.display = '';
+  document.getElementById('feedback-detail').style.display = '';
+  // 音程フィードバック: 緑（アクティブ）、基準音: グレー（非アクティブ）
+  updateModeButtons('prac');
+  document.getElementById('prac-note-sub').textContent = t('auto_detect_msg');
+  document.getElementById('ref-status').textContent = t('waiting');
+}
+
+function activateRefTone() {
+  // 音程フィードバックが動作中なら停止
+  if (pracActive) stopPractice();
+  const panel = document.getElementById('ref-tone-panel');
+  panel.style.display = '';
+  updateModeButtons('ref');
+}
+
+function updateModeButtons(mode) {
+  const pracBtn = document.getElementById('prac-start-btn');
+  const refBtn = document.getElementById('ref-tone-toggle');
+  if (mode === 'prac') {
+    pracBtn.className = 'btn btn-success';
+    pracBtn.style.opacity = '';
+    refBtn.className = 'btn';
+    refBtn.style.opacity = '';
+  } else if (mode === 'ref') {
+    refBtn.className = 'btn active-green';
+    refBtn.style.opacity = '';
+    pracBtn.className = 'btn';  // グレーボタン（C,D等と同じ色）
+    pracBtn.style.opacity = '';
+    pracBtn.style.display = '';
+    document.getElementById('prac-stop-btn').style.display = 'none';
+  } else {
+    pracBtn.className = 'btn btn-success';
+    pracBtn.style.opacity = '';
+    pracBtn.style.display = '';
+    refBtn.className = 'btn';
+    refBtn.style.opacity = '';
+    document.getElementById('prac-stop-btn').style.display = 'none';
+  }
+}
 
 document.getElementById('prac-start-btn').addEventListener('click', async () => {
   if (!isStarted) {
     try {
       await startMic();
     } catch(e) {
-      alert('マイクへのアクセスが拒否されました: ' + e.message);
+      alert(t('mic_denied') + ': ' + e.message);
       return;
     }
   }
-  pracActive = true;
-  document.getElementById('prac-start-btn').style.display = 'none';
-  document.getElementById('prac-stop-btn').style.display = '';
-  document.getElementById('feedback-detail').style.display = '';
-  document.getElementById('prac-note-sub').textContent = '演奏すると音程を自動検出します';
-  document.getElementById('ref-status').textContent = '待機中…';
+  activatePitchFeedback();
 });
 
 document.getElementById('prac-stop-btn').addEventListener('click', stopPractice);
+
+// ── 基準音選択 ───────────────────────────────────
+let refToneOsc = null, refToneGain = null, refToneMidi = null, refToneOct = 4;
+
+document.getElementById('ref-tone-toggle').addEventListener('click', () => {
+  const panel = document.getElementById('ref-tone-panel');
+  if (panel.style.display === 'none' || panel.style.display === '') {
+    const isOpening = panel.style.display === 'none';
+    if (isOpening) {
+      activateRefTone();
+    } else {
+      // パネル閉じる
+      panel.style.display = 'none';
+      stopRefToneManual();
+      updateModeButtons('none');
+    }
+  }
+});
+
+(function buildRefToneGrid() {
+  const grid = document.getElementById('ref-tone-grid');
+  for (let i = 0; i < 12; i++) {
+    const btn = document.createElement('button');
+    btn.className = 'btn';
+    btn.dataset.note = i;
+    btn.textContent = noteLabel(60 + i).replace(/\d+$/, '');
+    btn.style.fontSize = '13px';
+    btn.style.padding = '8px 2px';
+    btn.addEventListener('click', () => {
+      const midi = (refToneOct + 1) * 12 + i;
+      if (refToneMidi === midi) { stopRefToneManual(); return; }
+      playRefToneManual(midi);
+    });
+    grid.appendChild(btn);
+  }
+})();
+
+document.getElementById('ref-oct-down').addEventListener('click', () => {
+  if (refToneOct > 2) { refToneOct--; document.getElementById('ref-oct-val').textContent = refToneOct; }
+});
+document.getElementById('ref-oct-up').addEventListener('click', () => {
+  if (refToneOct < 6) { refToneOct++; document.getElementById('ref-oct-val').textContent = refToneOct; }
+});
+document.getElementById('ref-tone-stop-btn').addEventListener('click', stopRefToneManual);
+
+function playRefToneManual(midi) {
+  if (!audioCtx) { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+
+  if (refToneOsc && refToneGain) {
+    // 既に再生中 → 周波数だけ滑らかに切替（唸り防止）
+    refToneOsc.frequency.setTargetAtTime(midiToHz(midi), audioCtx.currentTime, 0.02);
+    refToneGain.gain.cancelScheduledValues(audioCtx.currentTime);
+    refToneGain.gain.setTargetAtTime(0.8 * masterVolume, audioCtx.currentTime, 0.03);
+  } else {
+    // 新規作成
+    refToneOsc = audioCtx.createOscillator();
+    refToneGain = audioCtx.createGain();
+    refToneOsc.type = 'sine';
+    refToneOsc.frequency.value = midiToHz(midi);
+    refToneGain.gain.value = 0;
+    const comp = audioCtx.createDynamicsCompressor();
+    comp.threshold.value = -24; comp.ratio.value = 20;
+    refToneOsc.connect(refToneGain);
+    refToneGain.connect(comp);
+    comp.connect(audioCtx.destination);
+    refToneOsc.start();
+    refToneGain.gain.setTargetAtTime(0.8 * masterVolume, audioCtx.currentTime, 0.05);
+  }
+  refToneMidi = midi;
+  // ボタンハイライト（緑色）
+  document.querySelectorAll('#ref-tone-grid button').forEach(b => {
+    b.classList.remove('active-green');
+    b.style.background = '';
+    b.style.color = '';
+  });
+  const selBtn = document.querySelector(`#ref-tone-grid button[data-note="${midi % 12}"]`);
+  if (selBtn) selBtn.classList.add('active-green');
+}
+
+function stopRefToneManual() {
+  if (refToneGain && audioCtx) {
+    refToneGain.gain.cancelScheduledValues(audioCtx.currentTime);
+    refToneGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.15);
+  }
+  const osc = refToneOsc, gn = refToneGain;
+  refToneOsc = null; refToneGain = null; refToneMidi = null;
+  setTimeout(() => {
+    if (osc) { try { osc.stop(); } catch(e){} }
+  }, 500);
+  document.querySelectorAll('#ref-tone-grid button').forEach(b => b.classList.remove('active-green'));
+}
 
 // ============================================================
 // マイク開始
@@ -792,7 +1850,7 @@ async function startMic() {
   sourceNode = audioCtx.createMediaStreamSource(stream);
   sourceNode.connect(analyser);
   isStarted = true;
-  document.getElementById('start-btn').textContent = '停止';
+  document.getElementById('start-btn').textContent = t('mic_stop');
   document.getElementById('start-btn').className = 'btn btn-danger';
   timerId = setInterval(detectLoop, DETECT_INTERVAL);
   startTunerRAF();
@@ -803,7 +1861,7 @@ document.getElementById('start-btn').addEventListener('click', async () => {
   try {
     await startMic();
   } catch(e) {
-    alert('マイクへのアクセスが拒否されました: ' + e.message);
+    alert(t('mic_denied') + ': ' + e.message);
   }
 });
 
@@ -818,7 +1876,7 @@ function stopAudio() {
   pNeedle.pos = 0; pNeedle.vel = 0; pNeedle.target = null;
   smoothedPlayerHz = null;
   isStarted = false;
-  document.getElementById('start-btn').textContent = 'マイク開始';
+  document.getElementById('start-btn').textContent = t('mic_start');
   document.getElementById('start-btn').className = 'btn btn-primary';
   setStateBadge('silent');
 }
@@ -1091,7 +2149,7 @@ function updateRmsDisplay(rms) {
   const el = document.getElementById('rms-display');
   if (!el) return;
   const detecting = rms >= SILENCE_THRESH;
-  el.textContent = `マイク音量: ${rms.toFixed(2)} / 感度設定: ${SILENCE_THRESH.toFixed(1)}  ${detecting ? '→ 検出中' : '→ 無音'}`;
+  el.textContent = `${t('volume_label')}: ${rms.toFixed(2)} / ${t('mic_sensitivity')}: ${SILENCE_THRESH.toFixed(1)}  ${detecting ? '→ ' + t('detecting') : '→ ' + t('silent')}`;
   el.style.color = detecting ? '#3fb950' : '#58a6ff';
 }
 
@@ -1249,7 +2307,7 @@ function updatePracDisplay(cents, midiI) {
   document.getElementById('prac-note-big').style.color = color;
   // 演奏中の音名をサブテキストに表示
   document.getElementById('prac-note-sub').textContent =
-    '演奏中: ' + noteLabel(midiI) + '　基準: ' + (pracMidi !== null ? noteLabel(pracMidi) : '—');
+    t('player') + ': ' + noteLabel(midiI) + '  ' + t('target') + ': ' + (pracMidi !== null ? noteLabel(pracMidi) : '—');
 }
 
 function setStateBadge(state) {
@@ -1462,12 +2520,12 @@ function startRefTone(midi) {
 
   // フェードイン
   gainNode.gain.cancelScheduledValues(audioCtx.currentTime);
-  gainNode.gain.setTargetAtTime(1.0, audioCtx.currentTime, 0.05);
+  gainNode.gain.setTargetAtTime(1.0 * masterVolume, audioCtx.currentTime, 0.05);
   refPlaying = true;
 
   document.getElementById('prac-note-big').textContent = noteLabel(midi);
   document.getElementById('prac-note-big').style.color = '#58a6ff';
-  document.getElementById('ref-status').textContent = '基準音: ' + noteLabel(midi) + ' (' + midiToHz(midi).toFixed(1) + ' Hz)';
+  document.getElementById('ref-status').textContent = t('target') + ': ' + noteLabel(midi) + ' (' + midiToHz(midi).toFixed(1) + ' Hz)';
 }
 
 function fadeOutRef() {
@@ -1476,7 +2534,7 @@ function fadeOutRef() {
   gainNode.gain.setTargetAtTime(0, audioCtx.currentTime, 0.3);
   refPlaying = false;
   refLingering = false;
-  document.getElementById('ref-status').textContent = '次の音を吹いてください';
+  document.getElementById('ref-status').textContent = t('play_next');
 }
 
 function stopPractice() {
@@ -1487,13 +2545,12 @@ function stopPractice() {
   pracMidi = null;
   refPlaying = false;
   refLingering = false;
-  document.getElementById('prac-start-btn').style.display = '';
-  document.getElementById('prac-stop-btn').style.display = 'none';
   document.getElementById('feedback-detail').style.display = 'none';
+  updateModeButtons('none');
   document.getElementById('ref-status').textContent = '—';
   document.getElementById('prac-note-big').textContent = '—';
   document.getElementById('prac-note-big').style.color = '#58a6ff';
-  document.getElementById('prac-note-sub').textContent = '演奏すると音程を自動検出します';
+  document.getElementById('prac-note-sub').textContent = t('auto_detect_msg');
   document.getElementById('prac-cents').textContent = '— ¢';
   drawTuner(null, null, 'prac-tuner');
 }
@@ -1521,7 +2578,7 @@ function renderReport() {
     const avg = r.avg.toFixed(1);
     const sign = r.avg >= 0 ? '+' : '';
     const color = Math.abs(r.avg) < 10 ? '#3fb950' : r.avg > 0 ? '#f85149' : '#79c0ff';
-    const trend = Math.abs(r.avg) < 10 ? '良好' : r.avg > 0 ? '高め' : '低め';
+    const trend = Math.abs(r.avg) < 10 ? t('trend_good') : r.avg > 0 ? t('trend_high') : t('trend_low');
     const barCx = 60;
     const maxBar = 40;
     const barOff = Math.round(Math.min(Math.abs(r.avg), 50) / 50 * maxBar);
@@ -1604,7 +2661,7 @@ function drawReportChart(rows) {
   ctx.fillStyle = '#e6edf3';
   ctx.font = '11px sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText('全音域ピッチ偏差マップ — ドイツ音名 (E2〜C6)', W / 2, margin.t - 4);
+  ctx.fillText(t('report_title'), W / 2, margin.t - 4);
 }
 
 // ============================================================
@@ -1671,8 +2728,9 @@ let ensSingleOsc = null, ensSingleGain = null, ensSingleToneIdx = -1;
   GERMAN.forEach((name, i) => {
     const midi = 60 + i;
     const btn = document.createElement('button');
-    btn.className = 'ens-btn' + (midi === ensRootMidi ? ' sel' : '');
-    btn.textContent = name;
+    btn.className = 'ens-root-btn ens-btn' + (midi === ensRootMidi ? ' sel' : '');
+    btn.dataset.midi = midi;
+    btn.textContent = (useGerman ? GERMAN : ENGLISH)[i];
     btn.addEventListener('click', () => {
       ensRootMidi = midi;
       rootGrid.querySelectorAll('.ens-btn').forEach(b => b.classList.remove('sel'));
@@ -1709,7 +2767,7 @@ document.getElementById('ens-play-btn').addEventListener('click', async () => {
   if (!audioCtx) {
     try {
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    } catch(e) { alert('音声再生に対応していません'); return; }
+    } catch(e) { alert(t('audio_unsupported')); return; }
   }
   // iOSはユーザー操作内でresumeしないと音が出ない
   if (audioCtx.state === 'suspended') {
@@ -1772,12 +2830,12 @@ function startChordOsc() {
   });
 
   // 接続・start後にフェードイン（startRefToneと同じ手順）
-  masterGain.gain.setTargetAtTime(0.85, audioCtx.currentTime, 0.05);
+  masterGain.gain.setTargetAtTime(0.85 * masterVolume, audioCtx.currentTime, 0.05);
 
   ensMasterGain = masterGain;
   ensActive = true;
   const btn = document.getElementById('ens-play-btn');
-  btn.textContent = '■ 停止';
+  btn.textContent = t('stop');
   btn.classList.remove('btn-primary'); btn.classList.add('btn-danger');
 }
 
@@ -1791,7 +2849,7 @@ function stopChordOsc(updateUI) {
   ensActive = false; ensMutedIdx = -1;
   if (updateUI) {
     const btn = document.getElementById('ens-play-btn');
-    btn.textContent = '▶ コード再生';
+    btn.textContent = t('chord_play');
     btn.classList.remove('btn-danger'); btn.classList.add('btn-primary');
     updateEnsDisplay(null, null, null, null);
   }
@@ -1812,7 +2870,7 @@ function updateEnsChordDisplay() {
     const etC = Math.round(jiC / 100) * 100;
     const off = jiC - etC;
     const noteMidi = ensRootMidi + Math.round(etC / 100);
-    const name = GERMAN[noteMidi % 12];
+    const name = (useGerman ? GERMAN : ENGLISH)[noteMidi % 12];
     const offStr = off === 0 ? '±0¢' : (off > 0 ? `+${Math.round(off)}¢` : `${Math.round(off)}¢`);
     const btn = document.createElement('button');
     btn.className = 'ens-tone-btn';
@@ -1857,7 +2915,7 @@ function handleEnsDetection(midiF, midiI, hz) {
   const jiDev = etDev - jiOff;                     // 純正調目標からの偏差
 
   const role = def.roles[closestIdx];
-  document.getElementById('ens-now-note').textContent = GERMAN[midiI % 12];
+  document.getElementById('ens-now-note').textContent = (useGerman ? GERMAN : ENGLISH)[midiI % 12];
 
   // 記録
   if (!ensData[role]) ensData[role] = { count: 0, sumJI: 0, jiArr: [] };
@@ -1900,7 +2958,7 @@ function playEnsSingleNote(ratio, idx) {
   ensSingleGain.connect(comp);
   comp.connect(audioCtx.destination);
   ensSingleOsc.start();
-  ensSingleGain.gain.setTargetAtTime(0.8, audioCtx.currentTime, 0.05);
+  ensSingleGain.gain.setTargetAtTime(0.8 * masterVolume, audioCtx.currentTime, 0.05);
   ensSingleToneIdx = idx;
   document.querySelectorAll('.ens-tone-btn').forEach(b =>
     b.classList.toggle('playing', +b.dataset.idx === idx));
@@ -1925,9 +2983,9 @@ function updateEnsDisplay(role, etDev, jiDev, jiOff) {
   const hintEl = document.getElementById('ens-ji-hint');
   const roleEl = document.getElementById('ens-role-display');
   if (etDev === null) {
-    if (etEl) etEl.textContent = '平均律偏差: — ¢';
+    if (etEl) etEl.textContent = t('et_dev') + ': — ¢';
     if (jiEl) { jiEl.textContent = '— ¢'; jiEl.style.color = 'var(--text2)'; }
-    if (hintEl) hintEl.textContent = '純正調目標: — ¢';
+    if (hintEl) hintEl.textContent = t('ji_target') + ': — ¢';
     if (roleEl) roleEl.textContent = '—';
     const noteEl2 = document.getElementById('ens-now-note');
     if (noteEl2) noteEl2.style.color = 'var(--accent)';
@@ -2005,7 +3063,7 @@ function renderEnsStats() {
     }
     const avg = d.sumJI / d.count;
     const col = Math.abs(avg) < 5 ? '#3fb950' : Math.abs(avg) < 15 ? '#d29922' : '#f85149';
-    const tend = Math.abs(avg) < 3 ? '✓ 正確' : avg > 0 ? `▲ 高め` : `▼ 低め`;
+    const tend = Math.abs(avg) < 3 ? t('ji_accurate') : avg > 0 ? `▲ 高め` : `▼ 低め`;
     html += `<tr style="border-bottom:1px solid var(--border)"><td style="padding:5px 3px;font-weight:bold">${role}</td><td style="text-align:center;color:var(--text2)">${s(off)}¢</td><td style="text-align:center">${s(avg)}¢</td><td style="color:${col};padding:5px 3px">${tend}</td></tr>`;
   });
   html += `</table><div style="margin-top:6px;font-size:11px;color:var(--text2)">測定: ${Object.values(ensData).reduce((a,d)=>a+d.count,0)} フレーム</div>`;
@@ -2017,9 +3075,8 @@ function renderEnsStats() {
 // ============================================================
 // バッファ内で最初にRMSが閾値を超えるサンプル位置をミリ秒で返す
 function detectOnsetMs(timeFull, sampleRate) {
-  const winSamples = Math.round(sampleRate * 0.005); // 5ms ウィンドウ
+  const winSamples = Math.round(sampleRate * 0.005); // 5ms window
   const N = timeFull.length;
-  // ピーク RMS を計算
   let peakRms = 0;
   for (let i = 0; i < N - winSamples; i += winSamples) {
     let s = 0;
@@ -2028,16 +3085,26 @@ function detectOnsetMs(timeFull, sampleRate) {
     if (r > peakRms) peakRms = r;
   }
   if (peakRms < 1e-6) return 0;
-  // 閾値: ピーク RMS の 8%（雑音より速く反応するため低めに設定）
-  const thresh = peakRms * 0.08;
+  // 1%閾値で大まかなonset位置を検出
+  const thresh = peakRms * 0.01;
+  let onsetIdx = 0;
   for (let i = 0; i < N - winSamples; i += winSamples) {
     let s = 0;
     for (let j = i; j < i + winSamples; j++) s += timeFull[j] * timeFull[j];
-    if (Math.sqrt(s / winSamples) >= thresh) {
-      return Math.round(i / sampleRate * 1000);
-    }
+    if (Math.sqrt(s / winSamples) >= thresh) { onsetIdx = i; break; }
   }
-  return 0;
+  // さらに後退: 信号の真の開始点を探す（0.3%閾値）
+  const backThresh = peakRms * 0.003;
+  for (let k = onsetIdx - winSamples; k >= 0; k -= winSamples) {
+    let s = 0;
+    for (let j = k; j < k + winSamples; j++) s += timeFull[j] * timeFull[j];
+    if (Math.sqrt(s / winSamples) < backThresh) break;
+    onsetIdx = k;
+  }
+  // 25ms余裕を取って先頭が切れないようにする
+  const marginSamples = Math.round(sampleRate * 0.025);
+  onsetIdx = Math.max(0, onsetIdx - marginSamples);
+  return Math.round(onsetIdx / sampleRate * 1000);
 }
 
 function finalizeAttackSnap(midiNote) {
@@ -2209,15 +3276,19 @@ function drawAttackSpectrum(snap, alpha) {
   const freqMax = 4000;
   const binMax = Math.round(freqMax / nyquist * binCount);
 
-  // dB 正規化: -100dB〜0dB
-  const dbMin = -100, dbMax = 0;
+  // ピーク正規化: 最大値を0dBとして相対表示
+  let peakDb = -120;
+  for (let b = 0; b < binMax; b++) { if (fd[b] > peakDb) peakDb = fd[b]; }
+  const dbMax = 0;           // 正規化後の最大 = 0dB
+  const dbMin = -60;         // 60dB range
+  const dbOffset = peakDb;   // 実dBからのオフセット
   function xp(bin) { return mg.l + (bin / binMax) * pw; }
-  function yp(db)  { return mg.t + ph - (db - dbMin) / (dbMax - dbMin) * ph; }
+  function yp(db)  { return mg.t + ph - (Math.max(dbMin, db - dbOffset) - dbMin) / (dbMax - dbMin) * ph; }
 
-  // dB グリッド
+  // dB グリッド（正規化後）
   ctx.fillStyle = '#8b949e'; ctx.font = '9px monospace'; ctx.textAlign = 'right';
-  for (const db of [-80, -60, -40, -20, 0]) {
-    const y = yp(db);
+  for (const db of [-60, -48, -36, -24, -12, 0]) {
+    const y = mg.t + ph - (db - dbMin) / (dbMax - dbMin) * ph;
     ctx.strokeStyle = db === 0 ? '#30363d' : '#21262d';
     ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(mg.l, y); ctx.lineTo(W - mg.r, y); ctx.stroke();
@@ -2240,11 +3311,11 @@ function drawAttackSpectrum(snap, alpha) {
   grad.addColorStop(0, `rgba(88,166,255,${0.9 * alpha})`);
   grad.addColorStop(1, `rgba(88,166,255,${0.15 * alpha})`);
   ctx.beginPath();
-  ctx.moveTo(xp(0), yp(dbMin));
+  ctx.moveTo(xp(0), yp(dbMin + dbOffset));
   for (let b = 0; b < binMax; b++) {
-    ctx.lineTo(xp(b), yp(Math.max(dbMin, fd[b])));
+    ctx.lineTo(xp(b), yp(fd[b]));
   }
-  ctx.lineTo(xp(binMax - 1), yp(dbMin));
+  ctx.lineTo(xp(binMax - 1), yp(dbMin + dbOffset));
   ctx.closePath();
   ctx.fillStyle = grad;
   ctx.fill();
@@ -2330,7 +3401,7 @@ function startAttackFade() {
   for (let m = 60; m <= 71; m++) CHAL_ROOTS.push(m); // C4〜B4
 
   CHAL_ROOTS.forEach(midi => {
-    const name = GERMAN[midi % 12];
+    const name = (useGerman ? GERMAN : ENGLISH)[midi % 12];
     const oct = Math.floor(midi / 12) - 1;
     const btn = document.createElement('button');
     btn.className = 'chal-btn' + (midi === chalRootMidi ? ' sel' : '');
@@ -2365,7 +3436,7 @@ function startAttackFade() {
 
 document.getElementById('chal-start-btn').addEventListener('click', async () => {
   if (!isStarted) {
-    try { await startMic(); } catch(e) { alert('マイクエラー: ' + e.message); return; }
+    try { await startMic(); } catch(e) { alert(t('mic_error') + ': ' + e.message); return; }
   }
   if (!audioCtx) {
     try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {}
@@ -2588,14 +3659,14 @@ function drawPhaseWheel() {
   if (inTune) {
     ctx.fillStyle = '#3fb950';
     ctx.font = 'bold 15px sans-serif';
-    ctx.fillText('✓ 合っている', cx, cy - 4);
+    ctx.fillText(t('in_tune'), cx, cy - 4);
   } else {
     ctx.fillStyle = ballColor;
     ctx.font = 'bold 14px monospace';
     ctx.fillText(`${cents >= 0 ? '+' : ''}${cents.toFixed(1)} ¢`, cx, cy - 4);
     ctx.fillStyle = '#8b949e';
     ctx.font = '10px sans-serif';
-    ctx.fillText(cents > 0 ? '▲ 高い' : '▼ 低い', cx, cy + 12);
+    ctx.fillText(cents > 0 ? t('higher') : t('lower'), cx, cy + 12);
   }
 
   // うなり情報（小さく下部に）
@@ -2604,7 +3675,7 @@ function drawPhaseWheel() {
     ctx.fillStyle = '#8b949e';
     ctx.font = '9px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText(absBeat < 0.3 ? 'うなりなし' : `うなり ${absBeat.toFixed(1)} Hz`, cx, cy + 28);
+    ctx.fillText(absBeat < 0.3 ? t('no_beats') : `うなり ${absBeat.toFixed(1)} Hz`, cx, cy + 28);
   }
 }
 
@@ -2648,7 +3719,7 @@ function drawBeatWaveforms() {
 
   if (!targetHz || !playerHz) {
     fill(wc); fill(ec);
-    if (beatInfoEl) beatInfoEl.textContent = '課題を開始して音を吹くと表示されます';
+    if (beatInfoEl) beatInfoEl.textContent = t('play_chord_to_show');
     return;
   }
 
@@ -2748,7 +3819,7 @@ function drawBeatWaveforms() {
     if (absBeat < 0.1) {
       ctx.fillStyle = '#3fb950';
       ctx.textAlign = 'right';
-      ctx.fillText('ほぼ合っています', W - 4, H - 3);
+      ctx.fillText(t('almost_in_tune'), W - 4, H - 3);
     }
   }
 
@@ -2756,7 +3827,7 @@ function drawBeatWaveforms() {
   if (beatInfoEl) {
     const inTune = absBeat < 0.3;
     if (inTune) {
-      beatInfoEl.textContent = '✓ ほぼ合っています！';
+      beatInfoEl.textContent = '✓ ' + t('almost_in_tune') + '！';
       beatInfoEl.style.color = '#3fb950';
     } else {
       const period = 1 / absBeat;
@@ -2847,7 +3918,7 @@ function startChalRefTone(midi) {
   chalRefGain.connect(comp);
   comp.connect(audioCtx.destination);
   chalRefOsc.start();
-  chalRefGain.gain.setTargetAtTime(0.5, audioCtx.currentTime, 0.05);
+  chalRefGain.gain.setTargetAtTime(0.5 * masterVolume, audioCtx.currentTime, 0.05);
 }
 
 function stopChalRefTone() {
@@ -2879,9 +3950,108 @@ document.querySelectorAll('.rhythm-pattern-btn').forEach(btn => {
   });
 });
 
+// 拍子
+document.querySelectorAll('.rhythm-meter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    rhythmMeter = +btn.dataset.meter;
+    document.querySelectorAll('.rhythm-meter-btn').forEach(b => b.classList.remove('sel'));
+    btn.classList.add('sel');
+    // ●○ドット数を更新
+    updateBeatDots(-1, false);
+  });
+});
+
+// 音符分割
+document.querySelectorAll('.rhythm-subdiv-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    rhythmSubdiv = +btn.dataset.subdiv;
+    document.querySelectorAll('.rhythm-subdiv-btn').forEach(b => b.classList.remove('sel'));
+    btn.classList.add('sel');
+  });
+});
+
+// タップテンポ（手拍子検出）
+let tapListening = false;
+let tapDetectTimer = null;
+let tapLastOnset = 0;
+let tapPrevRms = 0;
+
+document.getElementById('tap-tempo-btn').addEventListener('click', async () => {
+  if (tapListening) { stopTapListen(); return; }
+  // メトロノーム動作中なら停止
+  if (rhythmActive) stopRhythm();
+  // マイク開始
+  if (!audioCtx) { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+  if (audioCtx.state === 'suspended') await audioCtx.resume();
+  if (!isStarted) {
+    try { await startMic(); } catch(e) { alert(t('mic_needed')); return; }
+  }
+  tapListening = true;
+  tapTempoTimes = [];
+  tapPrevRms = 0;
+  const btn = document.getElementById('tap-tempo-btn');
+  btn.textContent = t('tap_listening');
+  btn.classList.add('active-green');
+  tapDetectLoop();
+});
+
+function stopTapListen() {
+  tapListening = false;
+  if (tapDetectTimer) { clearTimeout(tapDetectTimer); tapDetectTimer = null; }
+  const btn = document.getElementById('tap-tempo-btn');
+  btn.textContent = t('tap_btn');
+  btn.classList.remove('active-green');
+}
+
+function tapDetectLoop() {
+  if (!tapListening || !analyser) { stopTapListen(); return; }
+  const buf = new Float32Array(analyser.fftSize);
+  analyser.getFloatTimeDomainData(buf);
+  let sum = 0;
+  for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+  const rms = Math.sqrt(sum / buf.length) * 100;
+  const now = performance.now();
+
+  // onset検出: RMSが急上昇（前フレームの2倍以上かつ閾値超え）+ 200ms間隔
+  const thresh = Math.max(SILENCE_THRESH * 1.5, 1.0);
+  const isOnset = rms > thresh && rms > tapPrevRms * 2 && now - tapLastOnset > 200;
+  tapPrevRms = tapPrevRms * 0.7 + rms * 0.3; // EMA
+
+  if (isOnset) {
+    tapLastOnset = now;
+    // 3秒以上空いたらリセット
+    if (tapTempoTimes.length > 0 && now - tapTempoTimes[tapTempoTimes.length - 1] > 3000) {
+      tapTempoTimes = [];
+    }
+    tapTempoTimes.push(now);
+
+    if (tapTempoTimes.length >= 2) {
+      const intervals = [];
+      for (let i = 1; i < tapTempoTimes.length; i++) intervals.push(tapTempoTimes[i] - tapTempoTimes[i - 1]);
+      const avgMs = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+      const bpm = Math.round(60000 / avgMs);
+      rhythmBpm = Math.min(200, Math.max(40, bpm));
+      document.getElementById('rhythm-bpm-slider').value = rhythmBpm;
+      document.getElementById('rhythm-bpm-num').value = rhythmBpm;
+    }
+
+    const count = tapTempoTimes.length;
+    document.getElementById('tap-tempo-btn').textContent = `🎤 ${count}/4`;
+
+    // 4回検出で自動開始
+    if (count >= 4) {
+      stopTapListen();
+      startRhythm();
+      return;
+    }
+  }
+
+  tapDetectTimer = setTimeout(tapDetectLoop, 20);
+}
+
 document.getElementById('rhythm-start-btn').addEventListener('click', async () => {
   if (!audioCtx) {
-    try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) { alert('音声エラー'); return; }
+    try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) { alert(t('audio_error')); return; }
   }
   if (audioCtx.state === 'suspended') await audioCtx.resume();
   if (!isStarted) {
@@ -2903,48 +4073,116 @@ function startRhythm() {
   document.getElementById('rhythm-stop-btn').style.display = '';
   document.getElementById('rhythm-latency-display').textContent = `遅延補正: 計測中… (最初の${RHYTHM_CALIB_N}音で自動計測)`;
   scheduleRhythm();
+  startPendulum();
 }
 
 function stopRhythm() {
   rhythmActive = false;
   if (rhythmScheduleTimer) { clearTimeout(rhythmScheduleTimer); rhythmScheduleTimer = null; }
+  if (pendulumRAF) { cancelAnimationFrame(pendulumRAF); pendulumRAF = null; }
+  cancelScheduledClicks(); // 予約済みクリック音を即座に消音
   document.getElementById('rhythm-start-btn').style.display = '';
   document.getElementById('rhythm-stop-btn').style.display = 'none';
-  document.getElementById('rhythm-beat-display').textContent = '—';
+  document.getElementById('rhythm-beat-dots').textContent = '○'.repeat(rhythmMeter);
   document.getElementById('rhythm-timing-display').textContent = '—';
 }
 
 function scheduleRhythm() {
   if (!rhythmActive || !audioCtx) return;
   const beatInterval = 60 / rhythmBpm;
-  const scheduleAhead = 0.15; // 150ms先まで予約
+  const subInterval = beatInterval / rhythmSubdiv;
+  const scheduleAhead = 0.15;
 
   while (rhythmNextBeatTime < audioCtx.currentTime + scheduleAhead) {
     const beat = rhythmBeatCount;
-    const active = isBeatActive(beat);
-    rhythmExpectedBeats.push({ time: rhythmNextBeatTime, beat, active });
-    // 古いものを削除（32拍以上前）
-    while (rhythmExpectedBeats.length > 32) rhythmExpectedBeats.shift();
+    const mainBeat = Math.floor(beat / rhythmSubdiv);
+    const subBeat = beat % rhythmSubdiv;
+    const active = isBeatActive(mainBeat);
 
-    if (active) {
-      scheduleClick(rhythmNextBeatTime, beat % 4 === 0);
+    if (subBeat === 0) {
+      // メインビート
+      rhythmExpectedBeats.push({ time: rhythmNextBeatTime, beat: mainBeat, active });
+      while (rhythmExpectedBeats.length > 32) rhythmExpectedBeats.shift();
     }
 
-    // UIアップデートをスケジュール
-    const delayMs = (rhythmNextBeatTime - audioCtx.currentTime) * 1000;
-    const b = beat;
-    setTimeout(() => {
-      if (!rhythmActive) return;
-      const beatNum = (b % 4) + 1;
-      const disp = document.getElementById('rhythm-beat-display');
-      if (disp) disp.textContent = active ? beatNum : '(' + beatNum + ')';
-    }, Math.max(0, delayMs));
+    if (active) {
+      const isAccent = subBeat === 0 && mainBeat % rhythmMeter === 0;
+      const isSubClick = subBeat !== 0;
+      scheduleClick(rhythmNextBeatTime, isAccent, isSubClick);
+    }
 
-    rhythmNextBeatTime += beatInterval;
+    // ●○カウント更新（メインビートの時だけ）
+    if (subBeat === 0) {
+      const delayMs = (rhythmNextBeatTime - audioCtx.currentTime) * 1000;
+      const mb = mainBeat;
+      setTimeout(() => {
+        if (!rhythmActive) return;
+        updateBeatDots(mb % rhythmMeter, active);
+      }, Math.max(0, delayMs));
+    }
+
+    rhythmNextBeatTime += subInterval;
     rhythmBeatCount++;
   }
 
   rhythmScheduleTimer = setTimeout(scheduleRhythm, 50);
+}
+
+function updateBeatDots(pos, active) {
+  const dots = document.getElementById('rhythm-beat-dots');
+  if (!dots) return;
+  let s = '';
+  for (let i = 0; i < rhythmMeter; i++) {
+    s += i === pos ? (active ? '●' : '◐') : '○';
+  }
+  dots.textContent = s;
+}
+
+// 振り子アニメーション
+function startPendulum() {
+  const canvas = document.getElementById('pendulum-canvas');
+  if (!canvas) return;
+  function draw() {
+    const dpr = window.devicePixelRatio || 1;
+    const W = canvas.offsetWidth || 300;
+    const H = canvas.offsetHeight || 100;
+    canvas.width = W * dpr; canvas.height = H * dpr;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(0, 0, W, H);
+    if (!rhythmActive || !audioCtx) { pendulumRAF = null; return; }
+
+    // 振り子の角度: BPMに合わせて往復（下が固定点、上で振る）
+    const beatSec = 60 / rhythmBpm;
+    const t = audioCtx.currentTime;
+    const phase = (t / beatSec) * Math.PI;
+    const angle = Math.sin(phase) * 0.45; // ±0.45 rad (±26°)
+
+    const cx = W / 2, cy = H - 8;  // 固定点は下
+    const armLen = H - 22;
+    const bx = cx + Math.sin(angle) * armLen;
+    const by = cy - Math.cos(angle) * armLen; // 上に向かう
+
+    // 固定軸（下）
+    ctx.fillStyle = '#8b949e';
+    ctx.beginPath(); ctx.arc(cx, cy, 4, 0, Math.PI * 2); ctx.fill();
+    // アーム
+    ctx.strokeStyle = '#58a6ff88';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(bx, by); ctx.stroke();
+    // 球（上で振れる）
+    ctx.fillStyle = '#58a6ff';
+    ctx.shadowBlur = 10; ctx.shadowColor = '#58a6ff';
+    ctx.beginPath(); ctx.arc(bx, by, 10, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0;
+    // BPM表示
+    ctx.fillStyle = '#8b949e'; ctx.font = '11px monospace'; ctx.textAlign = 'center';
+    ctx.fillText(rhythmBpm + ' BPM', cx, 14);
+
+    pendulumRAF = requestAnimationFrame(draw);
+  }
+  pendulumRAF = requestAnimationFrame(draw);
 }
 
 function isBeatActive(beat) {
@@ -2953,18 +4191,33 @@ function isBeatActive(beat) {
   return Math.floor(beat / 2) % 2 === 0;
 }
 
-function scheduleClick(time, isAccent) {
+let rhythmScheduledNodes = []; // 予約済みクリック音ノード
+
+function scheduleClick(time, isAccent, isSub) {
   if (!audioCtx) return;
   const osc = audioCtx.createOscillator();
   const g = audioCtx.createGain();
-  osc.frequency.value = isAccent ? 1000 : 800;
-  osc.type = 'square';
-  g.gain.setValueAtTime(0.4, time);
+  osc.frequency.value = isAccent ? 1000 : (isSub ? 600 : 800);
+  osc.type = isSub ? 'triangle' : 'square';
+  const vol = isSub ? 0.2 : 0.4;
+  g.gain.setValueAtTime(vol * masterVolume, time);
   g.gain.exponentialRampToValueAtTime(0.001, time + 0.025);
   osc.connect(g);
   g.connect(audioCtx.destination);
   osc.start(time);
   osc.stop(time + 0.03);
+  rhythmScheduledNodes.push({ osc, g, time });
+  // 古いノード（再生済み）を掃除
+  const now = audioCtx.currentTime;
+  rhythmScheduledNodes = rhythmScheduledNodes.filter(n => n.time + 0.05 > now);
+}
+
+function cancelScheduledClicks() {
+  rhythmScheduledNodes.forEach(({ osc, g }) => {
+    try { g.gain.cancelScheduledValues(0); g.gain.value = 0; } catch(e){}
+    try { osc.stop(0); } catch(e){}
+  });
+  rhythmScheduledNodes = [];
 }
 
 function handleRhythmOnset(onsetTime) {
@@ -3052,7 +4305,7 @@ function drawRhythmHeatmap() {
 
   // X軸ラベル
   ctx.fillStyle = '#8b949e'; ctx.font = '9px monospace'; ctx.textAlign = 'center';
-  ctx.fillText('直近16拍', W / 2, H - margin.b + 12);
+  ctx.fillText(t('recent_beats'), W / 2, H - margin.b + 12);
 
   // ドット
   pts.forEach((p, i) => {
@@ -3071,16 +4324,81 @@ function drawRhythmHeatmap() {
 
   // タイトル
   ctx.fillStyle = '#e6edf3'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center';
-  ctx.fillText('タイミング偏差 (ms) — 上=早い / 下=遅い', W / 2, margin.t - 2);
+  ctx.fillText(t('timing_chart_title'), W / 2, margin.t - 2);
 }
 
 // ============================================================
-// Service Worker 登録（PWA・オフライン対応）
+// カード折りたたみ初期化
+// ============================================================
+(function initCollapsible() {
+  // h2 または h3 を持つ .card を折りたたみ対応にする
+  document.querySelectorAll('.card').forEach(card => {
+    const heading = card.querySelector('h2, h3');
+    if (!heading) return;
+    // ヘッダー部分をラップ
+    const header = document.createElement('div');
+    header.className = 'card-header';
+    heading.parentNode.insertBefore(header, heading);
+    header.appendChild(heading);
+    const toggle = document.createElement('span');
+    toggle.className = 'card-toggle';
+    toggle.textContent = '▼';
+    header.appendChild(toggle);
+    // ボディ部分をラップ
+    const body = document.createElement('div');
+    body.className = 'card-body';
+    while (header.nextSibling) {
+      body.appendChild(header.nextSibling);
+    }
+    card.appendChild(body);
+    // クリックで折りたたみ
+    header.addEventListener('click', () => {
+      card.classList.toggle('collapsed');
+      const key = 'collapse_' + (card.id || heading.textContent.trim());
+      localStorage.setItem(key, card.classList.contains('collapsed') ? '1' : '0');
+      // デバッググラフ連動
+      if (card.id === 'graph-wrap') graphVisible = !card.classList.contains('collapsed');
+    });
+    // 保存された状態を復元
+    const key = 'collapse_' + (card.id || heading.textContent.trim());
+    if (localStorage.getItem(key) === '1') {
+      card.classList.add('collapsed');
+      if (card.id === 'graph-wrap') graphVisible = false;
+    }
+  });
+})();
+
+// 多言語: ページロード時に適用
+applyLanguage();
+
+// ============================================================
+// Service Worker 登録（PWA・オフライン対応 + 自動更新）
 // ============================================================
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js')
-      .catch(e => console.warn('SW登録失敗:', e));
+    navigator.serviceWorker.register('./sw.js').then(reg => {
+      // 新SWがインストールされたら自動リロード
+      reg.addEventListener('updatefound', () => {
+        const newSW = reg.installing;
+        if (!newSW) return;
+        newSW.addEventListener('statechange', () => {
+          if (newSW.state === 'activated') {
+            // 新バージョンが有効化 → リロード
+            if (navigator.serviceWorker.controller) {
+              console.log('New version available — reloading…');
+              window.location.reload();
+            }
+          }
+        });
+      });
+      // 定期的に更新チェック（1時間ごと）
+      setInterval(() => reg.update(), 60 * 60 * 1000);
+    }).catch(e => console.warn('SW registration failed:', e));
+  });
+  // controllerが変わったらリロード（別タブで更新された場合）
+  let refreshing = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!refreshing) { refreshing = true; window.location.reload(); }
   });
 }
 
@@ -3098,6 +4416,235 @@ document.addEventListener('visibilitychange', () => {
   if (!document.hidden) resumeAudioCtx();
 });
 document.addEventListener('touchstart', resumeAudioCtx, { passive: true });
+
+// ============================================================
+// インタラクティブチュートリアル
+// ============================================================
+(function initTutorial() {
+  const overlay = document.createElement('div');
+  overlay.id = 'tutorial-overlay';
+  overlay.innerHTML = `
+    <div id="tutorial-backdrop"></div>
+    <div id="tutorial-spotlight"></div>
+    <div id="tutorial-bubble" class="arrow-top">
+      <div id="tutorial-step"></div>
+      <div id="tutorial-text"></div>
+      <div class="tutorial-btns">
+        <button class="btn btn-outline" id="tutorial-skip">Skip</button>
+        <button class="btn btn-primary" id="tutorial-next">Next →</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  // ── チュートリアルデータ ──
+  const T_SETS = {
+    overview: {
+      tab: 'measure',
+      steps: [
+        { target: '#start-btn', pos: 'bottom',
+          ja: 'まずここを押してマイクを許可しましょう！楽器の音を検出するために必要です。',
+          en: 'Press here to enable the microphone — needed to detect your instrument.',
+          zh: '先按这里启用麦克风——检测乐器音高所必需的。' },
+        { target: '#now-display', pos: 'bottom',
+          ja: '楽器を吹くと音名とセント値がリアルタイムに表示されます。針が中央にくれば音程ぴったり！',
+          en: 'Play your instrument to see note name and cents deviation in real-time. Center the needle!',
+          zh: '演奏时实时显示音名和偏差。指针居中表示音准！' },
+        { target: '#tabs', pos: 'bottom',
+          ja: 'タブを切り替えて色々な練習ができます。リズム、ハーモニー、アタック分析など！',
+          en: 'Switch tabs for different practice modes: Rhythm, Harmony, Attack analysis!',
+          zh: '切换标签页进行不同练习：节奏、和声、起音分析！' },
+        { target: '[data-tab="settings"]', pos: 'bottom',
+          ja: 'Settingsで楽器・感度・言語・音量を調整。「Help」からこのチュートリアルをいつでも再表示できます！各タブの詳しいガイドもあります。',
+          en: 'Settings: adjust instrument, sensitivity, language, volume. Reopen tutorials anytime from "Help" — including detailed guides for each tab!',
+          zh: 'Settings：调整乐器、灵敏度、语言、音量。随时从"Help"重新打开教程——包括每个标签的详细指南！' },
+      ]
+    },
+    tuner: {
+      tab: 'measure',
+      steps: [
+        { target: '#now-display', pos: 'bottom',
+          ja: '音名が大きく表示され、その下にセント値（±で音程のずれ）が出ます。±5¢以内なら緑色＝合格！',
+          en: 'Note name is shown large. Below it, cents deviation (±). Green (±5¢) = in tune!',
+          zh: '大字显示音名。下方是偏差（±）。绿色（±5¢）= 准确！' },
+        { target: '#tuner-canvas', pos: 'bottom',
+          ja: 'チューナーメーター。針が中央に来れば音程ぴったり。スプリングダンパー方式で滑らかに動きます。',
+          en: 'Tuner meter — center the needle for perfect pitch. Spring-damper physics for smooth motion.',
+          zh: '调音器表盘——指针居中即音准。弹簧阻尼物理实现平滑运动。' },
+        { target: '#prac-start-btn', pos: 'bottom',
+          ja: '「Pitch Feedback」を押すと、吹いた音に合わせて正しいピッチのサイン波が自動再生されます。',
+          en: '"Pitch Feedback" auto-plays a sine wave matching the correct pitch of your note.',
+          zh: '"Pitch Feedback"自动播放与你吹奏音高匹配的正弦波。' },
+        { target: '#ref-tone-toggle', pos: 'bottom',
+          ja: '「Ref. Tone」で好きな音を選んで常時再生。基準音に合わせるロングトーン練習に。',
+          en: '"Ref. Tone" plays a constant reference tone of your choice — great for long-tone practice.',
+          zh: '"Ref. Tone"持续播放你选择的参考音——适合长音练习。' },
+        { target: '#graph-wrap', pos: 'top',
+          ja: 'ピッチ履歴：直近の音程変化がリアルタイムにグラフ表示されます。▼で折りたたみ可能。',
+          en: 'Pitch History: real-time graph of recent pitch changes. Click ▼ to collapse.',
+          zh: '音高历史：实时图表显示最近的音高变化。点击▼折叠。' },
+      ]
+    },
+    rhythm: {
+      tab: 'rhythm',
+      steps: [
+        { target: '#rhythm-bpm-slider', pos: 'bottom',
+          ja: 'BPMスライダーでテンポを設定。数値入力も可能です。',
+          en: 'Set tempo with the BPM slider. Direct number input also works.',
+          zh: '用BPM滑块设置速度。也可以直接输入数字。' },
+        { target: '#tap-tempo-btn', pos: 'bottom',
+          ja: '🎤 Tapを押してから手拍子を4回！テンポを自動検出してメトロノームが開始します。',
+          en: 'Press 🎤 Tap, then clap 4 times! Auto-detects tempo and starts the metronome.',
+          zh: '按🎤 Tap，然后拍手4次！自动检测速度并启动节拍器。' },
+        { target: '#pendulum-canvas', pos: 'bottom',
+          ja: '振り子が視覚的にビートを表示。●○でカウント位置もひと目でわかります。',
+          en: 'Pendulum shows the beat visually. ●○ dots indicate count position at a glance.',
+          zh: '钟摆视觉显示节拍。●○圆点一目了然地显示计数位置。' },
+        { target: '#rhythm-heatmap', pos: 'top',
+          ja: 'タイミング履歴：各拍のずれをドットで表示。緑=正確、黄=やや、赤=ずれ大。',
+          en: 'Timing history: dots show deviation per beat. Green=accurate, yellow=close, red=off.',
+          zh: '时间历史：圆点显示每拍偏差。绿=准确，黄=接近，红=偏差大。' },
+      ]
+    },
+    harmony: {
+      tab: 'ens',
+      steps: [
+        { target: '#ens-play-btn', pos: 'bottom',
+          ja: '根音とコード種類を選んで「▶ コード再生」。純正律のハーモニーが鳴ります。',
+          en: 'Select root & chord type, then "▶ Play Chord". Pure just-intonation harmony plays.',
+          zh: '选择根音和和弦类型，然后"▶播放和弦"。播放纯律和声。' },
+        { target: '#ens-tuner', pos: 'top',
+          ja: '音程モニター：コードに合わせて吹くと、平均律と純正調のずれが表示されます。オレンジ▼が純正調の目標。',
+          en: 'Pitch Monitor: play along with the chord to see ET & JI deviations. Orange ▼ = JI target.',
+          zh: '音程监视器：配合和弦吹奏，显示平均律和纯律偏差。橙色▼=纯律目标。' },
+        { target: '#chal-start-btn', pos: 'bottom',
+          ja: '音程課題：ランダムに出される音程を吹いて当てるゲーム。根音と課題タイプを選んで開始！',
+          en: 'Interval Training: a game to play random intervals. Select root and types, then start!',
+          zh: '音程训练：演奏随机音程的游戏。选择根音和类型，然后开始！' },
+        { target: '#harmony-card', pos: 'top',
+          ja: 'ハーモニー可視化：位相ホイールの球が止まれば合っている証拠。波形でうなりの様子も見えます。',
+          en: 'Harmony Viz: the ball stops when in tune. Waveforms show beat patterns visually.',
+          zh: '和声可视化：球停止时音准正确。波形直观显示拍频。' },
+      ]
+    },
+    attack: {
+      tab: 'attack',
+      steps: [
+        { target: '#atk-time-canvas', pos: 'bottom',
+          ja: '時間領域波形：アタック（吹き始め）の生波形を拡大表示。青=波形、緑=RMS（音量）エンベロープ。',
+          en: 'Time Domain: zoomed raw waveform of the attack. Blue=waveform, green=RMS envelope.',
+          zh: '时域波形：起音的放大原始波形。蓝=波形，绿=RMS包络。' },
+        { target: '#atk-freq-canvas', pos: 'top',
+          ja: '周波数スペクトル：倍音構造が見えます。▲マーカーは理論上の倍音位置。ピークが最大=0dBに正規化。',
+          en: 'Frequency Spectrum: see harmonic structure. ▲ marks theoretical harmonics. Normalized to peak=0dB.',
+          zh: '频率频谱：查看泛音结构。▲标记理论泛音位置。归一化到峰值=0dB。' },
+        { target: '#atk-info', pos: 'top',
+          ja: '次の音を吹くと前の波形がフェードアウトして更新されます。きれいなタンギング＝波形がスパッと立ち上がる！',
+          en: 'Play again to update — old waveform fades out. Clean tonguing = sharp waveform rise!',
+          zh: '再次吹奏即可更新——旧波形淡出。干净的吐音=波形快速上升！' },
+      ]
+    },
+    report: {
+      tab: 'report',
+      steps: [
+        { target: '#report-table', pos: 'bottom',
+          ja: '全音名の偏差傾向が一覧表示されます。「良好」「高め」「低め」で傾向がわかります。',
+          en: 'See deviation trends for all notes. "Good", "Sharp", "Flat" show your tendencies.',
+          zh: '查看所有音的偏差趋势。"Good"、"Sharp"、"Flat"显示你的倾向。' },
+        { target: '#export-btn', pos: 'bottom',
+          ja: 'CSVエクスポートでデータを保存。Excelなどで分析できます。',
+          en: 'Export to CSV for external analysis in Excel or similar tools.',
+          zh: '导出CSV用于在Excel等工具中进行外部分析。' },
+      ]
+    }
+  };
+
+  let activeSteps = [];
+  let currentStep = 0;
+
+  function switchToTab(tabId) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    const tab = document.querySelector(`[data-tab="${tabId}"]`);
+    if (tab) tab.classList.add('active');
+    const panel = document.getElementById('panel-' + tabId);
+    if (panel) panel.classList.add('active');
+    // ハーモニータブなら可視化開始
+    if (tabId === 'ens' && typeof startHarmonyViz === 'function') startHarmonyViz();
+  }
+
+  function startTutorial(setName) {
+    const tset = T_SETS[setName];
+    if (!tset) return;
+    activeSteps = tset.steps;
+    currentStep = 0;
+    switchToTab(tset.tab);
+    // 少し待ってからステップ表示（タブ切替のレンダリング待ち）
+    setTimeout(() => showStep(0), 200);
+  }
+
+  function showStep(idx) {
+    if (idx >= activeSteps.length) { endTutorial(); return; }
+    currentStep = idx;
+    const step = activeSteps[idx];
+    const el = document.querySelector(step.target);
+    if (!el) { showStep(idx + 1); return; }
+
+    // 対象が見えるようにスクロール
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+    setTimeout(() => {
+      overlay.style.display = 'block';
+      const rect = el.getBoundingClientRect();
+      const pad = 8;
+      const spot = document.getElementById('tutorial-spotlight');
+      spot.style.left = (rect.left - pad) + 'px';
+      spot.style.top = (rect.top - pad) + 'px';
+      spot.style.width = (rect.width + pad * 2) + 'px';
+      spot.style.height = (rect.height + pad * 2) + 'px';
+
+      const bubble = document.getElementById('tutorial-bubble');
+      const text = step[currentLang] || step.en || step.ja;
+      document.getElementById('tutorial-text').textContent = text;
+      document.getElementById('tutorial-step').textContent = `${idx + 1} / ${activeSteps.length}`;
+
+      bubble.classList.remove('arrow-top', 'arrow-bottom');
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const useBottom = step.pos === 'bottom' || (step.pos !== 'top' && spaceBelow > 180);
+      if (useBottom) {
+        bubble.classList.add('arrow-bottom');
+        bubble.style.top = (rect.bottom + pad + 14) + 'px';
+      } else {
+        bubble.classList.add('arrow-top');
+        bubble.style.top = Math.max(10, rect.top - pad - 160) + 'px';
+      }
+      bubble.style.left = Math.max(10, Math.min(window.innerWidth - 340, rect.left - 20)) + 'px';
+
+      document.getElementById('tutorial-next').textContent = idx === activeSteps.length - 1 ? '✓ Done!' : 'Next →';
+    }, 150);
+  }
+
+  function endTutorial() {
+    overlay.style.display = 'none';
+    localStorage.setItem('tutorial-done', '1');
+  }
+
+  document.getElementById('tutorial-next').addEventListener('click', () => showStep(currentStep + 1));
+  document.getElementById('tutorial-skip').addEventListener('click', endTutorial);
+  document.getElementById('tutorial-backdrop').addEventListener('click', endTutorial);
+
+  // Settings のランチャーボタン
+  document.querySelectorAll('.tutorial-launch-btn').forEach(btn => {
+    btn.addEventListener('click', () => startTutorial(btn.dataset.tutorial));
+  });
+
+  // 初回起動時に overview を自動表示
+  if (!localStorage.getItem('tutorial-done')) {
+    setTimeout(() => startTutorial('overview'), 800);
+  }
+})();
 </script>
+
+<!-- チュートリアルオーバーレイ（JSで動的に追加されるためここには不要） -->
 </body>
 </html>
