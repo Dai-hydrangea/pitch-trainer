@@ -4551,6 +4551,49 @@ document.addEventListener('touchstart', resumeAudioCtx, { passive: true });
     setTimeout(() => showStep(0), 200);
   }
 
+  function positionOverlay() {
+    // 現在のステップの要素位置を再取得して配置
+    if (currentStep >= activeSteps.length) return;
+    const step = activeSteps[currentStep];
+    const el = document.querySelector(step.target);
+    if (!el) return;
+
+    const rect = el.getBoundingClientRect();
+    const pad = 8;
+    const spot = document.getElementById('tutorial-spotlight');
+    spot.style.left = (rect.left - pad) + 'px';
+    spot.style.top = (rect.top - pad) + 'px';
+    spot.style.width = (rect.width + pad * 2) + 'px';
+    spot.style.height = (rect.height + pad * 2) + 'px';
+
+    const bubble = document.getElementById('tutorial-bubble');
+    // 吹き出し高さ計測
+    bubble.style.visibility = 'hidden'; bubble.style.top = '0'; bubble.style.left = '0';
+    const bh = bubble.offsetHeight || 180;
+    const bw = Math.min(320, window.innerWidth - 20);
+    bubble.style.maxWidth = bw + 'px';
+    bubble.style.visibility = '';
+
+    bubble.classList.remove('arrow-top', 'arrow-bottom');
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const useBottom = spaceBelow > bh + 30;
+    let top;
+    if (useBottom) {
+      bubble.classList.add('arrow-bottom');
+      top = rect.bottom + pad + 14;
+    } else {
+      bubble.classList.add('arrow-top');
+      top = rect.top - pad - bh - 14;
+    }
+    top = Math.max(10, Math.min(top, window.innerHeight - bh - 10));
+    bubble.style.top = top + 'px';
+    bubble.style.left = Math.max(10, Math.min(window.innerWidth - bw - 10, rect.left - 10)) + 'px';
+  }
+
+  // スクロール・リサイズ時に位置を再計算
+  window.addEventListener('scroll', () => { if (overlay.style.display === 'block') positionOverlay(); }, true);
+  window.addEventListener('resize', () => { if (overlay.style.display === 'block') positionOverlay(); });
+
   function showStep(idx) {
     if (idx >= activeSteps.length) { endTutorial(); return; }
     currentStep = idx;
@@ -4558,47 +4601,28 @@ document.addEventListener('touchstart', resumeAudioCtx, { passive: true });
     const el = document.querySelector(step.target);
     if (!el) { showStep(idx + 1); return; }
 
-    // 対象が見えるようにスクロール
+    // テキスト設定
+    const bubble = document.getElementById('tutorial-bubble');
+    document.getElementById('tutorial-text').textContent = step[currentLang] || step.en || step.ja;
+    document.getElementById('tutorial-step').textContent = `${idx + 1} / ${activeSteps.length}`;
+    document.getElementById('tutorial-next').textContent = idx === activeSteps.length - 1 ? '✓ Done!' : 'Next →';
+
+    // オーバーレイを一旦非表示にしてスクロール
+    overlay.style.display = 'none';
     el.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
-    setTimeout(() => {
+    // スクロール完了を待って位置取得（iOS Safariはsmooth scrollが遅い）
+    let settled = 0;
+    let lastY = window.scrollY;
+    function waitSettle() {
+      if (window.scrollY === lastY) settled++;
+      else { settled = 0; lastY = window.scrollY; }
+      if (settled < 3) { requestAnimationFrame(waitSettle); return; }
+      // スクロール完了 → 表示
       overlay.style.display = 'block';
-      const rect = el.getBoundingClientRect();
-      const pad = 8;
-      const spot = document.getElementById('tutorial-spotlight');
-      spot.style.left = (rect.left - pad) + 'px';
-      spot.style.top = (rect.top - pad) + 'px';
-      spot.style.width = (rect.width + pad * 2) + 'px';
-      spot.style.height = (rect.height + pad * 2) + 'px';
-
-      const bubble = document.getElementById('tutorial-bubble');
-      const text = step[currentLang] || step.en || step.ja;
-      document.getElementById('tutorial-text').textContent = text;
-      document.getElementById('tutorial-step').textContent = `${idx + 1} / ${activeSteps.length}`;
-
-      bubble.classList.remove('arrow-top', 'arrow-bottom');
-      // 吹き出しの高さを事前計測
-      bubble.style.visibility = 'hidden'; bubble.style.top = '0'; bubble.style.left = '0';
-      const bh = bubble.offsetHeight || 180;
-      bubble.style.visibility = '';
-      const spaceBelow = window.innerHeight - rect.bottom;
-      const spaceAbove = rect.top;
-      const useBottom = spaceBelow > bh + 30 || (step.pos === 'bottom' && spaceBelow > bh + 20);
-      let top;
-      if (useBottom) {
-        bubble.classList.add('arrow-bottom');
-        top = rect.bottom + pad + 14;
-      } else {
-        bubble.classList.add('arrow-top');
-        top = rect.top - pad - bh - 14;
-      }
-      // 画面内にクランプ
-      top = Math.max(10, Math.min(top, window.innerHeight - bh - 10));
-      bubble.style.top = top + 'px';
-      bubble.style.left = Math.max(10, Math.min(window.innerWidth - 340, rect.left - 20)) + 'px';
-
-      document.getElementById('tutorial-next').textContent = idx === activeSteps.length - 1 ? '✓ Done!' : 'Next →';
-    }, 150);
+      positionOverlay();
+    }
+    requestAnimationFrame(waitSettle);
   }
 
   function endTutorial() {
