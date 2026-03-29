@@ -1560,8 +1560,9 @@ document.getElementById('a4-slider').addEventListener('input', function() {
 
 document.querySelectorAll('.tab').forEach(tab => {
   tab.addEventListener('click', () => {
-    // タブ切り替え時に全音停止
+    // タブ切り替え時に全音停止（フェードアウト）
     if (pracActive) stopPractice();
+    stopRefToneManual();
     if (ensActive) stopChordOsc(true);
     stopEnsSingleNote();
     if (chalActive) stopChallenge();
@@ -1827,10 +1828,13 @@ document.getElementById('start-btn').addEventListener('click', async () => {
 
 function stopAudio() {
   if (pracActive) stopPractice();
+  stopRefToneManual();
   if (timerId) { clearInterval(timerId); timerId = null; }
   if (tunerAnimId) { cancelAnimationFrame(tunerAnimId); tunerAnimId = null; tunerLastTs = null; }
   if (sourceNode) { sourceNode.disconnect(); sourceNode = null; }
-  if (audioCtx) { audioCtx.close(); audioCtx = null; }
+  // audioCtxはフェードアウト完了を待ってからclose（ブツッ防止）
+  const ctx = audioCtx; audioCtx = null;
+  setTimeout(() => { if (ctx) { try { ctx.close(); } catch(e){} } }, 500);
   lastValidHz = null; lastValidHzTime = 0;
   mNeedle.pos = 0; mNeedle.vel = 0; mNeedle.target = null;
   pNeedle.pos = 0; pNeedle.vel = 0; pNeedle.target = null;
@@ -2499,8 +2503,17 @@ function fadeOutRef() {
 
 function stopPractice() {
   if (pracAutoTimer !== null) { clearTimeout(pracAutoTimer); pracAutoTimer = null; }
-  if (oscNode) { try { oscNode.stop(); } catch(e){} oscNode = null; }
-  if (gainNode) { gainNode.disconnect(); gainNode = null; }
+  // フェードアウトしてから停止（ブツッ防止）
+  if (gainNode && audioCtx) {
+    gainNode.gain.cancelScheduledValues(audioCtx.currentTime);
+    gainNode.gain.setTargetAtTime(0, audioCtx.currentTime, 0.08);
+  }
+  const oldOsc = oscNode, oldGain = gainNode;
+  oscNode = null; gainNode = null;
+  setTimeout(() => {
+    if (oldOsc) { try { oldOsc.stop(); } catch(e){} }
+    if (oldGain) { try { oldGain.disconnect(); } catch(e){} }
+  }, 300);
   pracActive = false;
   pracMidi = null;
   refPlaying = false;
