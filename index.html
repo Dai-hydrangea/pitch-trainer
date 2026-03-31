@@ -416,6 +416,10 @@ tr:last-child td { border-bottom: none; }
     </div>
     <div class="ens-type-row" id="ens-type-row"></div>
     <div id="ens-chord-display">—</div>
+    <div class="ens-mode-row" style="margin-bottom:6px;">
+      <button class="btn sel" id="btn-tuning-ji" style="flex:1;">純正律 (JI)</button>
+      <button class="btn" id="btn-tuning-et" style="flex:1;">平均律 (ET)</button>
+    </div>
     <div class="ens-mode-row">
       <button class="btn sel" id="btn-mode-full" data-i18n="chord_full">コード全音再生</button>
       <button class="btn" id="btn-mode-mute" data-i18n="chord_mute">自分の音を除く</button>
@@ -2771,15 +2775,15 @@ document.getElementById('silend-slider').dispatchEvent(new Event('input'));
 // 合奏モード（純正調アンサンブル練習）
 // ============================================================
 const CHORD_DEFS = {
-  'M':    { name: 'メジャー',      ratios: [1, 5/4, 3/2],        roles: ['根音','第3音','第5音'] },
-  'm':    { name: 'マイナー',      ratios: [1, 6/5, 3/2],        roles: ['根音','第3音','第5音'] },
-  'M7':   { name: 'メジャー7th',   ratios: [1, 5/4, 3/2, 15/8], roles: ['根音','第3音','第5音','第7音'] },
-  '7':    { name: 'ドミナント7th', ratios: [1, 5/4, 3/2, 16/9], roles: ['根音','第3音','第5音','♭7音'] },
-  // ↑ 7/4(-31¢)は理論的JIだが実用管弦楽では16/9(-4¢)が標準
-  'm7':   { name: 'マイナー7th',   ratios: [1, 6/5, 3/2, 16/9], roles: ['根音','第3音','第5音','♭7音'] },
-  'dim':  { name: 'ディミニッシュ', ratios: [1, 6/5, 64/45],     roles: ['根音','第3音','減5音'] },
-  'sus4': { name: 'サスペンデッド', ratios: [1, 4/3, 3/2],       roles: ['根音','第4音','第5音'] },
+  'M':    { name: 'メジャー',      ratios: [1, 5/4, 3/2],        semitones: [0, 4, 7],      roles: ['根音','第3音','第5音'] },
+  'm':    { name: 'マイナー',      ratios: [1, 6/5, 3/2],        semitones: [0, 3, 7],      roles: ['根音','第3音','第5音'] },
+  'M7':   { name: 'メジャー7th',   ratios: [1, 5/4, 3/2, 15/8], semitones: [0, 4, 7, 11],  roles: ['根音','第3音','第5音','第7音'] },
+  '7':    { name: 'ドミナント7th', ratios: [1, 5/4, 3/2, 16/9], semitones: [0, 4, 7, 10],  roles: ['根音','第3音','第5音','♭7音'] },
+  'm7':   { name: 'マイナー7th',   ratios: [1, 6/5, 3/2, 16/9], semitones: [0, 3, 7, 10],  roles: ['根音','第3音','第5音','♭7音'] },
+  'dim':  { name: 'ディミニッシュ', ratios: [1, 6/5, 64/45],     semitones: [0, 3, 6],      roles: ['根音','第3音','減5音'] },
+  'sus4': { name: 'サスペンデッド', ratios: [1, 4/3, 3/2],       semitones: [0, 5, 7],      roles: ['根音','第4音','第5音'] },
 };
+let ensTuning = 'ji'; // 'ji' = 純正律, 'et' = 平均律
 
 let ensActive    = false;
 let ensRootMidi  = 60;     // C4
@@ -2872,6 +2876,22 @@ document.getElementById('btn-mode-mute').addEventListener('click', () => {
   document.getElementById('btn-mode-mute').classList.add('sel');
   document.getElementById('btn-mode-full').classList.remove('sel');
 });
+
+// 純正律 / 平均律 切り替え
+document.getElementById('btn-tuning-ji').addEventListener('click', () => {
+  ensTuning = 'ji';
+  document.getElementById('btn-tuning-ji').classList.add('sel');
+  document.getElementById('btn-tuning-et').classList.remove('sel');
+  updateEnsChordDisplay();
+  if (ensActive) startChordOsc();
+});
+document.getElementById('btn-tuning-et').addEventListener('click', () => {
+  ensTuning = 'et';
+  document.getElementById('btn-tuning-et').classList.add('sel');
+  document.getElementById('btn-tuning-ji').classList.remove('sel');
+  updateEnsChordDisplay();
+  if (ensActive) startChordOsc();
+});
 document.getElementById('ens-reset-btn').addEventListener('click', () => {
   ensData = {};
   renderEnsStats();
@@ -2892,9 +2912,9 @@ function startChordOsc() {
 
   const def = CHORD_DEFS[ensChordType];
   const rootHz = midiToHz(ensRootMidi);
-  const voiceGain = 0.9 / def.ratios.length;
+  const voices = ensTuning === 'et' ? def.semitones : def.ratios;
+  const voiceGain = 0.9 / voices.length;
 
-  // startRefTone と同じパターン: gain=0→接続→start()→setTargetAtTime
   const masterGain = audioCtx.createGain();
   masterGain.gain.value = 0;
   const comp = audioCtx.createDynamicsCompressor();
@@ -2903,11 +2923,13 @@ function startChordOsc() {
   masterGain.connect(comp);
   comp.connect(audioCtx.destination);
 
-  ensOscs = def.ratios.map(ratio => {
+  ensOscs = voices.map((v, i) => {
     const osc = audioCtx.createOscillator();
     const g = audioCtx.createGain();
     osc.type = 'sine';
-    osc.frequency.value = rootHz * ratio;
+    osc.frequency.value = ensTuning === 'et'
+      ? midiToHz(ensRootMidi + v)  // 平均律: MIDI半音で計算
+      : rootHz * v;                 // 純正律: 周波数比で計算
     g.gain.value = voiceGain;
     osc.connect(g);
     g.connect(masterGain);
@@ -2945,23 +2967,36 @@ function updateEnsChordDisplay() {
   const def = CHORD_DEFS[ensChordType];
   const container = document.getElementById('ens-chord-display');
   container.innerHTML = '';
-  stopEnsSingleNote(); // コード変更時は単音停止
-  def.ratios.forEach((ratio, i) => {
+  stopEnsSingleNote();
+
+  const isET = ensTuning === 'et';
+  const voices = isET ? def.semitones : def.ratios;
+
+  voices.forEach((v, i) => {
     if (i > 0) {
       const sep = document.createElement('span');
       sep.className = 'ens-sep'; sep.textContent = '—';
       container.appendChild(sep);
     }
-    const jiC = 1200 * Math.log2(ratio);
-    const etC = Math.round(jiC / 100) * 100;
-    const off = jiC - etC;
-    const noteMidi = ensRootMidi + Math.round(etC / 100);
+
+    let noteMidi, offStr;
+    if (isET) {
+      noteMidi = ensRootMidi + v;
+      offStr = '±0¢';
+    } else {
+      const jiC = 1200 * Math.log2(v);
+      const etC = Math.round(jiC / 100) * 100;
+      const off = jiC - etC;
+      noteMidi = ensRootMidi + Math.round(etC / 100);
+      offStr = off === 0 ? '±0¢' : (off > 0 ? `+${Math.round(off)}¢` : `${Math.round(off)}¢`);
+    }
     const name = (useGerman ? GERMAN : ENGLISH)[noteMidi % 12];
-    const offStr = off === 0 ? '±0¢' : (off > 0 ? `+${Math.round(off)}¢` : `${Math.round(off)}¢`);
     const btn = document.createElement('button');
     btn.className = 'ens-tone-btn';
     btn.dataset.idx = i;
-    btn.innerHTML = `${name}<span class="ens-ji-label">${offStr}</span>`;
+    btn.innerHTML = isET
+      ? `${name}<span class="ens-ji-label">ET</span>`
+      : `${name}<span class="ens-ji-label">${offStr}</span>`;
     btn.addEventListener('click', async () => {
       if (!audioCtx) {
         try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
@@ -2970,7 +3005,7 @@ function updateEnsChordDisplay() {
       if (audioCtx.state === 'suspended') {
         try { await audioCtx.resume(); } catch(e) {}
       }
-      playEnsSingleNote(ratio, i);
+      playEnsSingleNote(v, i);
     });
     container.appendChild(btn);
   });
@@ -3029,10 +3064,12 @@ function restoreEnsOsc() {
 }
 
 // 単音プレビュー再生
-function playEnsSingleNote(ratio, idx) {
-  if (ensSingleToneIdx === idx) { stopEnsSingleNote(); return; } // 同じボタン→停止
+function playEnsSingleNote(voiceVal, idx) {
+  if (ensSingleToneIdx === idx) { stopEnsSingleNote(); return; }
   stopEnsSingleNote();
-  const freq = midiToHz(ensRootMidi) * ratio;
+  const freq = ensTuning === 'et'
+    ? midiToHz(ensRootMidi + voiceVal)
+    : midiToHz(ensRootMidi) * voiceVal;
   ensSingleOsc = audioCtx.createOscillator();
   ensSingleGain = audioCtx.createGain();
   ensSingleGain.gain.value = 0;
@@ -3257,10 +3294,28 @@ function drawAttackTimeDomain(snap, alpha) {
   const preRollMs = snap.preRollMs || 0;
   const postMs = snap.totalMs - preRollMs;
 
-  // X: sample index → pixel（バッファ全体をフィット）
-  function xp(i) { return mg.l + (i / (N - 1)) * pw; }
-  // 実時間 ms（0 = onset）→ sample index → pixel
-  function xpMs(ms) { return mg.l + ((ms + preRollMs) / snap.totalMs) * pw; }
+  // onset(0ms)を画面左端から15%の位置に固定し、アタック部分を広く表示
+  const onsetRatio = 0.15;
+  // 表示範囲: onset前はpreRollMsの分だけ、onset後はpostMs
+  const viewPreMs = Math.min(preRollMs, 100); // pre-rollは最大100msに制限
+  const viewPostMs = postMs;
+  const viewTotalMs = viewPreMs + viewPostMs;
+
+  // onset位置のサンプルインデックス
+  const onsetSample = Math.round(preRollMs / 1000 * snap.sampleRate);
+  const viewStartSample = Math.max(0, onsetSample - Math.round(viewPreMs / 1000 * snap.sampleRate));
+  const viewEndSample = Math.min(N, onsetSample + Math.round(viewPostMs / 1000 * snap.sampleRate));
+
+  // X: sample index → pixel（onset中心の表示）
+  function xp(i) {
+    const relMs = (i - onsetSample) / snap.sampleRate * 1000;
+    return mg.l + onsetRatio * pw + (relMs / viewPostMs) * (1 - onsetRatio) * pw;
+  }
+  // 実時間 ms（0 = onset）→ pixel
+  function xpMs(ms) {
+    if (ms < 0) return mg.l + (1 - (-ms / viewPreMs)) * onsetRatio * pw;
+    return mg.l + onsetRatio * pw + (ms / viewPostMs) * (1 - onsetRatio) * pw;
+  }
   // Y: amplitude → pixel (0=center, ±1=edges)
   function yp(v) { return mg.t + ph / 2 - v * ph / 2; }
 
@@ -3307,26 +3362,33 @@ function drawAttackTimeDomain(snap, alpha) {
     ctx.fillText('onset', xOnset + 3, mg.t + 10);
   }
 
-  // --- 波形（生サンプル） ---
+  // --- 波形（生サンプル、表示範囲のみ描画） ---
   let peak = 1e-6;
-  for (let i = 0; i < data.length; i++) { const a = Math.abs(data[i]); if (a > peak) peak = a; }
-  const skip = Math.max(1, Math.floor(N / pw / 2));
+  for (let i = viewStartSample; i < viewEndSample; i++) { const a = Math.abs(data[i]); if (a > peak) peak = a; }
+  const visibleSamples = viewEndSample - viewStartSample;
+  const skip = Math.max(1, Math.floor(visibleSamples / pw / 2));
   ctx.beginPath();
-  for (let i = 0; i < N; i += skip) {
+  let first = true;
+  for (let i = viewStartSample; i < viewEndSample; i += skip) {
     const x = xp(i);
+    if (x < mg.l - 2 || x > W - mg.r + 2) continue;
     const y = yp(data[i] / peak);
-    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    if (first) { ctx.moveTo(x, y); first = false; } else ctx.lineTo(x, y);
   }
   ctx.strokeStyle = `rgba(88,166,255,${0.85 * alpha})`;
   ctx.lineWidth = 1.2;
   ctx.stroke();
 
-  // --- RMS エンベロープ（緑ライン） ---
+  // --- RMS エンベロープ（緑ライン、波形と同じ座標系） ---
   ctx.beginPath();
+  let envFirst = true;
   for (let i = 0; i < envLen; i++) {
-    const x = mg.l + (i * wSize / (N - 1)) * pw;
+    const sampleIdx = i * wSize;
+    if (sampleIdx < viewStartSample || sampleIdx > viewEndSample) continue;
+    const x = xp(sampleIdx);
+    if (x < mg.l - 2 || x > W - mg.r + 2) continue;
     const y = mg.t + ph / 2 - (env[i] / envMax) * ph / 2;
-    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    if (envFirst) { ctx.moveTo(x, y); envFirst = false; } else ctx.lineTo(x, y);
   }
   ctx.strokeStyle = `rgba(63,185,80,${0.7 * alpha})`;
   ctx.lineWidth = 1.5;
@@ -4934,6 +4996,9 @@ function drawRhythmHeatmap() {
   let recPlayRAF = null;
   let recGraphTStart = 0;
   let recGraphTEnd = 10;
+  let recManualCenter = null;  // null=自動追従, 数値=手動スクロール位置
+  let recDragStartX = null;
+  let recDragStartCenter = null;
   let recRepeatActive = false;
   let recRepeatStart = 0;
   let recRepeatEnd = 0;
@@ -5011,10 +5076,66 @@ function drawRhythmHeatmap() {
     updateSeekUI(seekTime);
   }
 
+  // ── クリック（シーク）とドラッグ（スクロール）を区別 ──
   [pitchCanvas, waveCanvas].forEach(canvas => {
-    canvas.addEventListener('click', e => seekFromCanvasEvent(canvas, e.clientX));
+    let dragMoved = false;
+    // マウス
+    canvas.addEventListener('mousedown', e => {
+      recDragStartX = e.clientX;
+      recDragStartCenter = recManualCenter != null ? recManualCenter : (recGraphTStart + recGraphTEnd) / 2;
+      dragMoved = false;
+    });
+    canvas.addEventListener('mousemove', e => {
+      if (recDragStartX === null) return;
+      const dx = e.clientX - recDragStartX;
+      if (Math.abs(dx) > 5) dragMoved = true;
+      if (!dragMoved) return;
+      const rect = canvas.getBoundingClientRect();
+      const pw = rect.width - GRAPH_MG.l - GRAPH_MG.r;
+      const tWindow = recGraphTEnd - recGraphTStart || 10;
+      const dt = -(dx / pw) * tWindow;
+      const totalTime = recData.length > 1 ? recData[recData.length - 1].t : 10;
+      recManualCenter = Math.max(tWindow / 2, Math.min(totalTime - tWindow / 2, recDragStartCenter + dt));
+      drawRecPitchGraphPlayback(recManualCenter);
+      drawWaveformWithPosition(recManualCenter);
+    });
+    canvas.addEventListener('mouseup', e => {
+      if (!dragMoved && recDragStartX !== null) {
+        seekFromCanvasEvent(canvas, e.clientX);
+        recManualCenter = null; // シーク後は自動追従に戻す
+      }
+      recDragStartX = null;
+    });
+    canvas.addEventListener('mouseleave', () => { recDragStartX = null; });
+    // タッチ
+    let touchStartX = null, touchDragMoved = false;
+    canvas.addEventListener('touchstart', e => {
+      if (e.touches.length !== 1) return;
+      touchStartX = e.touches[0].clientX;
+      recDragStartCenter = recManualCenter != null ? recManualCenter : (recGraphTStart + recGraphTEnd) / 2;
+      touchDragMoved = false;
+    }, { passive: true });
+    canvas.addEventListener('touchmove', e => {
+      if (touchStartX === null || e.touches.length !== 1) return;
+      const dx = e.touches[0].clientX - touchStartX;
+      if (Math.abs(dx) > 5) touchDragMoved = true;
+      if (!touchDragMoved) return;
+      e.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const pw = rect.width - GRAPH_MG.l - GRAPH_MG.r;
+      const tWindow = recGraphTEnd - recGraphTStart || 10;
+      const dt = -(dx / pw) * tWindow;
+      const totalTime = recData.length > 1 ? recData[recData.length - 1].t : 10;
+      recManualCenter = Math.max(tWindow / 2, Math.min(totalTime - tWindow / 2, recDragStartCenter + dt));
+      drawRecPitchGraphPlayback(recManualCenter);
+      drawWaveformWithPosition(recManualCenter);
+    }, { passive: false });
     canvas.addEventListener('touchend', e => {
-      if (e.changedTouches.length) seekFromCanvasEvent(canvas, e.changedTouches[0].clientX);
+      if (!touchDragMoved && e.changedTouches.length) {
+        seekFromCanvasEvent(canvas, e.changedTouches[0].clientX);
+        recManualCenter = null;
+      }
+      touchStartX = null;
     });
   });
 
@@ -5620,6 +5741,11 @@ function drawRhythmHeatmap() {
       recAudioElem.currentTime = recRepeatStart;
     }
 
+    // 再生位置が表示範囲外に出たら自動追従に戻す
+    if (recManualCenter != null && recDragStartX === null) {
+      if (ct < recGraphTStart || ct > recGraphTEnd) recManualCenter = null;
+    }
+
     const total = getAudioDuration();
     document.getElementById('rec-seek-bar').value = (ct / total) * 1000;
     document.getElementById('rec-seek-current').textContent = formatTime(ct);
@@ -5722,11 +5848,11 @@ function drawRhythmHeatmap() {
     const totalTime = recData[recData.length - 1].t;
 
     const viewWindow = 10;
-    // 常に10秒幅を維持（末尾・先頭でも縮まない）
-    let tEnd = Math.min(totalTime, currentTime + viewWindow / 2);
+    // 手動スクロール中はrecManualCenterを使用、それ以外はcurrentTimeに追従
+    const center = recManualCenter != null ? recManualCenter : currentTime;
+    let tEnd = Math.min(totalTime, center + viewWindow / 2);
     let tStart = tEnd - viewWindow;
     if (tStart < 0) { tStart = 0; tEnd = Math.min(totalTime, viewWindow); }
-    // 録音が10秒未満の場合のみ窓を縮める
     if (totalTime < viewWindow) { tStart = 0; tEnd = totalTime; }
     recGraphTStart = tStart;
     recGraphTEnd = tEnd;
