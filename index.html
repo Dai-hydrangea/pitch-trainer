@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>音程練習アプリ v2.0</title>
+<title>音程練習アプリ v3.2</title>
 
 <!-- PWA -->
 <link rel="manifest" href="manifest.json">
@@ -188,7 +188,7 @@ tr:last-child td { border-bottom: none; }
 /* ===== チュートリアル ===== */
 #tutorial-overlay { position:fixed; top:0; left:0; width:100%; height:100%; z-index:9999; display:none; pointer-events:auto; }
 #tutorial-backdrop { position:absolute; top:0; left:0; width:100%; height:100%; }
-#tutorial-spotlight { position:absolute; border-radius:8px; box-shadow:0 0 0 9999px rgba(0,0,0,0.75); z-index:10000; pointer-events:none; transition:all 0.3s ease; }
+#tutorial-spotlight { position:absolute; border-radius:8px; box-shadow:0 0 0 9999px rgba(0,0,0,0.75); z-index:10000; pointer-events:none; transition:all 0.3s ease; cursor:pointer; }
 #tutorial-bubble { position:absolute; z-index:10001; background:var(--surface); border:1px solid var(--accent); border-radius:12px; padding:16px 20px; max-width:320px; min-width:220px; box-shadow:0 8px 32px rgba(0,0,0,0.5); }
 #tutorial-bubble::before { content:''; position:absolute; width:12px; height:12px; background:var(--surface); border-left:1px solid var(--accent); border-top:1px solid var(--accent); transform:rotate(45deg); }
 #tutorial-bubble.arrow-top::before { bottom:-7px; left:30px; transform:rotate(225deg); }
@@ -202,7 +202,7 @@ tr:last-child td { border-bottom: none; }
 <body>
 
 <div id="header">
-  <h1>🎵 <span data-i18n="app_title">音程練習アプリ</span> <small style="font-size:0.45em;opacity:0.55;font-weight:400;">v3.0</small></h1>
+  <h1>🎵 <span data-i18n="app_title">音程練習アプリ</span> <small style="font-size:0.45em;opacity:0.55;font-weight:400;">v3.2</small></h1>
   <div id="a4-ctrl">
     A4 =
     <input type="range" id="a4-slider" min="415" max="446" value="442" step="1">
@@ -687,6 +687,10 @@ tr:last-child td { border-bottom: none; }
     <div class="setting-row">
       <div class="setting-label"><strong data-i18n="tab_attack">Attack</strong></div>
       <button class="btn btn-outline tutorial-launch-btn" data-tutorial="attack">▶</button>
+    </div>
+    <div class="setting-row">
+      <div class="setting-label"><strong>Recorder</strong></div>
+      <button class="btn btn-outline tutorial-launch-btn" data-tutorial="recorder">▶</button>
     </div>
     <div class="setting-row">
       <div class="setting-label"><strong data-i18n="tab_report">Report</strong></div>
@@ -5964,7 +5968,7 @@ applyLanguage();
 // ============================================================
 // Service Worker 登録 + 強制キャッシュクリア
 // ============================================================
-const APP_VERSION = 'v26';
+const APP_VERSION = 'v28';
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', async () => {
     // 旧キャッシュが残っている場合は全削除してからSW登録
@@ -6040,46 +6044,46 @@ document.addEventListener('touchstart', resumeAudioCtx, { passive: true });
       tab: 'measure',
       steps: [
         { target: '#start-btn', pos: 'bottom',
-          ja: 'まずここを押してマイクを許可しましょう！楽器の音を検出するために必要です。',
-          en: 'Press here to enable the microphone — needed to detect your instrument.',
-          zh: '先按这里启用麦克风——检测乐器音高所必需的。' },
+          ja: 'まずここを押してマイクを許可しましょう！（このボタンをタップできます）',
+          en: 'Press here to enable the microphone! (You can tap this button now)',
+          zh: '先按这里启用麦克风！（可以直接点击此按钮）' },
         { target: '#now-display', pos: 'bottom',
-          ja: '楽器を吹くと音名とセント値がリアルタイムに表示されます。針が中央にくれば音程ぴったり！',
-          en: 'Play your instrument to see note name and cents deviation in real-time. Center the needle!',
-          zh: '演奏时实时显示音名和偏差。指针居中表示音准！' },
+          ja: '楽器を吹くと音名がリアルタイムに表示されます。メーターの針が中央にくれば音程ぴったり！',
+          en: 'Play your instrument to see note name in real-time. Center the meter needle for perfect pitch!',
+          zh: '演奏时实时显示音名。表盘指针居中表示音准！' },
         { target: '#tabs', pos: 'bottom',
-          ja: 'タブを切り替えて色々な練習ができます。リズム、ハーモニー、アタック分析など！',
-          en: 'Switch tabs for different practice modes: Rhythm, Harmony, Attack analysis!',
-          zh: '切换标签页进行不同练习：节奏、和声、起音分析！' },
+          ja: 'タブを切り替えて色々な練習ができます。リズム、ハーモニー、アタック、レコーダーなど！',
+          en: 'Switch tabs for different modes: Rhythm, Harmony, Attack, Recorder and more!',
+          zh: '切换标签页：节奏、和声、起音、录音等多种模式！' },
         { target: '[data-tab="settings"]', pos: 'bottom',
-          ja: 'Settingsで楽器・感度・言語・音量を調整。「Help」からこのチュートリアルをいつでも再表示できます！各タブの詳しいガイドもあります。',
-          en: 'Settings: adjust instrument, sensitivity, language, volume. Reopen tutorials anytime from "Help" — including detailed guides for each tab!',
-          zh: 'Settings：调整乐器、灵敏度、语言、音量。随时从"Help"重新打开教程——包括每个标签的详细指南！' },
+          ja: 'Settingsで楽器・感度・言語・音量を調整。「Help」からこのチュートリアルをいつでも再表示できます！',
+          en: 'Settings: adjust instrument, sensitivity, language, volume. Reopen tutorials anytime from "Help"!',
+          zh: 'Settings：调整乐器、灵敏度、语言、音量。随时从"Help"重新打开教程！' },
       ]
     },
     tuner: {
       tab: 'measure',
       steps: [
         { target: '#now-display', pos: 'bottom',
-          ja: '音名が大きく表示され、その下にセント値（±で音程のずれ）が出ます。±5¢以内なら緑色＝合格！',
-          en: 'Note name is shown large. Below it, cents deviation (±). Green (±5¢) = in tune!',
-          zh: '大字显示音名。下方是偏差（±）。绿色（±5¢）= 准确！' },
+          ja: '音名が大きく表示されます。メーターの針が中央付近なら合格！色で音程の良さがわかります。',
+          en: 'Note name shown large. Meter needle near center = in tune! Color shows pitch accuracy.',
+          zh: '大字显示音名。表盘指针居中=音准！颜色显示准确度。' },
         { target: '#tuner-canvas', pos: 'bottom',
-          ja: 'チューナーメーター。針が中央に来れば音程ぴったり。スプリングダンパー方式で滑らかに動きます。',
-          en: 'Tuner meter — center the needle for perfect pitch. Spring-damper physics for smooth motion.',
-          zh: '调音器表盘——指针居中即音准。弹簧阻尼物理实现平滑运动。' },
+          ja: 'チューナーメーター。スプリングダンパー方式で自然に動きます。バーの位置で音程のずれが直感的にわかります。',
+          en: 'Tuner meter with spring-damper physics. The bar position intuitively shows pitch deviation.',
+          zh: '弹簧阻尼调音器。条形位置直观显示音高偏差。' },
         { target: '#prac-start-btn', pos: 'bottom',
           ja: '「Pitch Feedback」を押すと、吹いた音に合わせて正しいピッチのサイン波が自動再生されます。',
           en: '"Pitch Feedback" auto-plays a sine wave matching the correct pitch of your note.',
           zh: '"Pitch Feedback"自动播放与你吹奏音高匹配的正弦波。' },
-        { target: '#ref-tone-toggle', pos: 'bottom',
-          ja: '「Ref. Tone」で好きな音を選んで常時再生。基準音に合わせるロングトーン練習に。',
-          en: '"Ref. Tone" plays a constant reference tone of your choice — great for long-tone practice.',
-          zh: '"Ref. Tone"持续播放你选择的参考音——适合长音练习。' },
+        { target: '#ref-tone-grid', pos: 'bottom',
+          ja: '音名をタップすると基準音が再生されます。オクターブも変更可能。ロングトーン練習に最適！',
+          en: 'Tap a note to play a reference tone. Octave adjustable. Great for long-tone practice!',
+          zh: '点击音名播放参考音。可调八度。适合长音练习！' },
         { target: '#graph-wrap', pos: 'top',
           ja: 'ピッチ履歴：直近の音程変化がリアルタイムにグラフ表示されます。▼で折りたたみ可能。',
           en: 'Pitch History: real-time graph of recent pitch changes. Click ▼ to collapse.',
-          zh: '音高历史：实时图表显示最近的音高变化。点击▼折叠。' },
+          zh: '音高历史：实时显示最近音高变化。点击▼折叠。' },
       ]
     },
     rhythm: {
@@ -6106,39 +6110,60 @@ document.addEventListener('touchstart', resumeAudioCtx, { passive: true });
     harmony: {
       tab: 'ens',
       steps: [
+        { target: '#ens-root-grid', pos: 'bottom',
+          ja: '根音を選択。その下のオクターブ（−/+）で音域を変更できます（2〜6オクターブ）。',
+          en: 'Select root note. Change octave (2-6) with −/+ buttons below.',
+          zh: '选择根音。用下方的−/+按钮更改八度（2-6）。' },
+        { target: '#btn-tuning-ji', pos: 'bottom',
+          ja: '純正律（JI）と平均律（ET）を切り替えられます。両方の響きの違いを聴き比べてみましょう！',
+          en: 'Toggle between Just Intonation (JI) and Equal Temperament (ET). Compare the difference!',
+          zh: '切换纯律（JI）和平均律（ET）。比较两者的音响差异！' },
         { target: '#ens-play-btn', pos: 'bottom',
-          ja: '根音とコード種類を選んで「▶ コード再生」。純正律のハーモニーが鳴ります。',
-          en: 'Select root & chord type, then "▶ Play Chord". Pure just-intonation harmony plays.',
-          zh: '选择根音和和弦类型，然后"▶播放和弦"。播放纯律和声。' },
+          ja: 'コード種類を選んで「▶ コード再生」。各音名をタップすると単音も鳴らせます。',
+          en: 'Select chord type and press "▶ Play". Tap individual note names to hear single tones.',
+          zh: '选择和弦类型并按"▶播放"。点击单个音名可试听单音。' },
         { target: '#ens-tuner', pos: 'top',
-          ja: '音程モニター：コードに合わせて吹くと、平均律と純正調のずれが表示されます。オレンジ▼が純正調の目標。',
-          en: 'Pitch Monitor: play along with the chord to see ET & JI deviations. Orange ▼ = JI target.',
-          zh: '音程监视器：配合和弦吹奏，显示平均律和纯律偏差。橙色▼=纯律目标。' },
-        { target: '#chal-start-btn', pos: 'bottom',
-          ja: '音程課題：ランダムに出される音程を吹いて当てるゲーム。根音と課題タイプを選んで開始！',
-          en: 'Interval Training: a game to play random intervals. Select root and types, then start!',
-          zh: '音程训练：演奏随机音程的游戏。选择根音和类型，然后开始！' },
+          ja: '音程モニター：コードに合わせて吹くと、メーターでずれが表示されます。オレンジ▼が純正調の目標位置。',
+          en: 'Pitch Monitor: play along and the meter shows deviation. Orange ▼ = JI target position.',
+          zh: '音程监视器：配合吹奏，表盘显示偏差。橙色▼=纯律目标位置。' },
         { target: '#harmony-card', pos: 'top',
-          ja: 'ハーモニー可視化：位相ホイールの球が止まれば合っている証拠。波形でうなりの様子も見えます。',
-          en: 'Harmony Viz: the ball stops when in tune. Waveforms show beat patterns visually.',
-          zh: '和声可视化：球停止时音准正确。波形直观显示拍频。' },
+          ja: '位相ホイール：球が止まれば純正調に合っている証拠。波形でうなりの様子も見えます。',
+          en: 'Phase wheel: ball stops = in tune with JI. Waveforms show beat patterns.',
+          zh: '相位轮：球停止=纯律音准。波形显示拍频。' },
       ]
     },
     attack: {
       tab: 'attack',
       steps: [
         { target: '#atk-time-canvas', pos: 'bottom',
-          ja: '時間領域波形：アタック（吹き始め）の生波形を拡大表示。青=波形、緑=RMS（音量）エンベロープ。',
-          en: 'Time Domain: zoomed raw waveform of the attack. Blue=waveform, green=RMS envelope.',
-          zh: '时域波形：起音的放大原始波形。蓝=波形，绿=RMS包络。' },
+          ja: '時間領域波形：アタックの生波形を表示。青=波形、緑=RMS（音量）エンベロープ。0msがアタックの立ち上がり位置。',
+          en: 'Time domain: raw attack waveform. Blue=waveform, green=RMS envelope. 0ms = onset position.',
+          zh: '时域：原始起音波形。蓝=波形，绿=RMS包络。0ms=起音位置。' },
         { target: '#atk-freq-canvas', pos: 'top',
-          ja: '周波数スペクトル：倍音構造が見えます。▲マーカーは理論上の倍音位置。ピークが最大=0dBに正規化。',
-          en: 'Frequency Spectrum: see harmonic structure. ▲ marks theoretical harmonics. Normalized to peak=0dB.',
-          zh: '频率频谱：查看泛音结构。▲标记理论泛音位置。归一化到峰值=0dB。' },
+          ja: '周波数スペクトル：倍音構造が見えます。▲マーカーは理論上の倍音位置。',
+          en: 'Frequency Spectrum: see harmonic structure. ▲ marks theoretical harmonics.',
+          zh: '频率频谱：查看泛音结构。▲标记理论泛音位置。' },
         { target: '#atk-info', pos: 'top',
-          ja: '次の音を吹くと前の波形がフェードアウトして更新されます。きれいなタンギング＝波形がスパッと立ち上がる！',
-          en: 'Play again to update — old waveform fades out. Clean tonguing = sharp waveform rise!',
-          zh: '再次吹奏即可更新——旧波形淡出。干净的吐音=波形快速上升！' },
+          ja: '次の音を吹くと波形が更新されます。きれいなタンギング＝波形がスパッと立ち上がる！',
+          en: 'Play again to update. Clean tonguing = sharp waveform rise!',
+          zh: '再次吹奏更新。干净吐音=波形快速上升！' },
+      ]
+    },
+    recorder: {
+      tab: 'recorder',
+      steps: [
+        { target: '#rec-start-btn', pos: 'bottom',
+          ja: '●録音ボタンで演奏を録音開始。音質（32/64/128kbps）を選べます。メトロノーム付き！',
+          en: 'Press ● Record to start. Choose quality (32/64/128kbps). Includes metronome!',
+          zh: '按●录音开始。可选音质（32/64/128kbps）。带节拍器！' },
+        { target: '#rec-pitch-graph', pos: 'bottom',
+          ja: '録音後に音程グラフが表示されます。タップでシーク、ドラッグで左右スクロールできます。',
+          en: 'Pitch graph appears after recording. Tap to seek, drag to scroll left/right.',
+          zh: '录音后显示音程图。点击定位，拖动左右滚动。' },
+        { target: '#rec-time-wave', pos: 'top',
+          ja: '波形表示：録音中はリアルタイム波形、再生中は音程グラフと同期した波形が表示されます。',
+          en: 'Waveform: real-time during recording, synced with pitch graph during playback.',
+          zh: '波形：录音时实时显示，播放时与音程图同步。' },
       ]
     },
     report: {
@@ -6261,7 +6286,22 @@ document.addEventListener('touchstart', resumeAudioCtx, { passive: true });
 
   document.getElementById('tutorial-next').addEventListener('click', () => showStep(currentStep + 1));
   document.getElementById('tutorial-skip').addEventListener('click', endTutorial);
-  document.getElementById('tutorial-backdrop').addEventListener('click', endTutorial);
+  document.getElementById('tutorial-backdrop').addEventListener('click', (e) => {
+    // spotlight領域内のクリックはターゲット要素に転送
+    if (currentStep < activeSteps.length) {
+      const step = activeSteps[currentStep];
+      const el = document.querySelector(step.target);
+      if (el) {
+        const rect = el.getBoundingClientRect();
+        if (e.clientX >= rect.left && e.clientX <= rect.right &&
+            e.clientY >= rect.top && e.clientY <= rect.bottom) {
+          el.click();
+          return;
+        }
+      }
+    }
+    endTutorial();
+  });
 
   // Settings のランチャーボタン
   document.querySelectorAll('.tutorial-launch-btn').forEach(btn => {
