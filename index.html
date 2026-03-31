@@ -73,10 +73,7 @@ h3 { font-size: 13px; font-weight: 600; color: var(--text2); margin-bottom: 6px;
 /* ===== 計測タブ ===== */
 #now-display { text-align: center; }
 #now-note { font-size: 72px; font-weight: 700; color: var(--accent); line-height: 1; min-height: 80px; }
-#now-cents { font-size: 28px; font-weight: 600; margin-top: 4px; min-height: 36px; }
-#now-cents.sharp { color: #f85149; }
-#now-cents.flat { color: #79c0ff; }
-#now-cents.center { color: var(--accent2); }
+#now-cents { display: none; }
 #tuner-canvas { width: 100%; height: 60px; border-radius: 4px; }
 
 #state-badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; margin-top: 8px; }
@@ -184,9 +181,9 @@ tr:last-child td { border-bottom: none; }
 #ens-now-note { font-size: 56px; font-weight: 700; color: var(--accent); line-height: 1; min-height: 64px; text-align: center; }
 #ens-role-display { font-size: 14px; color: var(--text2); text-align: center; min-height: 20px; margin: 2px 0 6px; }
 #ens-tuner { width: 100%; height: 52px; border-radius: 4px; margin: 4px 0 8px; display: block; }
-#ens-et-display { font-size: 14px; text-align: center; }
-#ens-ji-display { font-size: 22px; font-weight: 700; text-align: center; margin: 4px 0; min-height: 30px; }
-#ens-ji-hint { font-size: 12px; color: var(--text2); text-align: center; min-height: 18px; }
+#ens-et-display { display: none; }
+#ens-ji-display { display: none; }
+#ens-ji-hint { display: none; }
 
 /* ===== チュートリアル ===== */
 #tutorial-overlay { position:fixed; top:0; left:0; width:100%; height:100%; z-index:9999; display:none; pointer-events:auto; }
@@ -1576,6 +1573,10 @@ const mNeedle = { pos: 0, vel: 0, target: null, label: null };
 const pNeedle = { pos: 0, vel: 0, target: null };
 // ハーモニー可視化用の平滑化Hz（フェーズホイール安定化）
 let smoothedPlayerHz = null;
+// ハーモニーメーター用スプリング・ダンパー
+const ensNeedle = { pos: 0, vel: 0, target: null };
+let ensNeedleAnimId = null;
+let ensNeedleLastTs = null;
 let tunerAnimId  = null;  // RAF ID
 let tunerLastTs  = null;  // 前フレームのタイムスタンプ
 
@@ -3099,6 +3100,8 @@ function stopEnsSingleNote() {
   document.querySelectorAll('.ens-tone-btn').forEach(b => b.classList.remove('playing'));
 }
 
+let ensLastJiOff = 0; // 最後のJI目標オフセット（メーターアニメ用）
+
 function updateEnsDisplay(role, etDev, jiDev, jiOff) {
   const s = v => (v >= 0 ? '+' : '') + v.toFixed(1);
   const etEl = document.getElementById('ens-et-display');
@@ -3112,7 +3115,7 @@ function updateEnsDisplay(role, etDev, jiDev, jiOff) {
     if (roleEl) roleEl.textContent = '—';
     const noteEl2 = document.getElementById('ens-now-note');
     if (noteEl2) noteEl2.style.color = 'var(--accent)';
-    drawEnsTuner(null, null);
+    ensNeedle.target = null;
     return;
   }
   if (etEl) etEl.textContent = `平均律偏差: ${s(etDev)} ¢`;
@@ -3123,10 +3126,49 @@ function updateEnsDisplay(role, etDev, jiDev, jiOff) {
   }
   if (hintEl) hintEl.textContent = `（純正調目標: 平均律より ${s(jiOff)} ¢）`;
   if (roleEl) roleEl.textContent = role;
-  // 音名: ピッタリ合うと緑に光る
   const noteEl = document.getElementById('ens-now-note');
   if (noteEl) noteEl.style.color = jiInTune ? '#3fb950' : 'var(--accent)';
-  drawEnsTuner(etDev, jiOff);
+  // 大きく変化したら即ジャンプ
+  if (ensNeedle.target === null || Math.abs(etDev - ensNeedle.target) > 60) {
+    ensNeedle.pos = etDev; ensNeedle.vel = 0;
+  }
+  ensNeedle.target = etDev;
+  ensLastJiOff = jiOff;
+  startEnsNeedleAnim();
+}
+
+// ── ハーモニーメーター スプリング・ダンパーアニメーション ──
+function startEnsNeedleAnim() {
+  if (ensNeedleAnimId) return;
+  ensNeedleLastTs = null;
+  ensNeedleAnimId = requestAnimationFrame(ensNeedleStep);
+}
+function ensNeedleStep(ts) {
+  if (ensNeedle.target === null) {
+    drawEnsTuner(null, null);
+    ensNeedleAnimId = null;
+    return;
+  }
+  if (ensNeedleLastTs === null) ensNeedleLastTs = ts;
+  const dt = Math.min((ts - ensNeedleLastTs) / 1000, 0.05);
+  ensNeedleLastTs = ts;
+
+  // チューナーより少し遅め: K=10, C=6（チューナーはK=16, C=7.5）
+  const K = 10, C = 6;
+  const force = -K * (ensNeedle.pos - ensNeedle.target) - C * ensNeedle.vel;
+  ensNeedle.vel += force * dt;
+  ensNeedle.pos += ensNeedle.vel * dt;
+
+  drawEnsTuner(ensNeedle.pos, ensLastJiOff);
+
+  // 十分収束したら停止
+  if (Math.abs(ensNeedle.pos - ensNeedle.target) < 0.1 && Math.abs(ensNeedle.vel) < 0.5) {
+    ensNeedle.pos = ensNeedle.target;
+    drawEnsTuner(ensNeedle.pos, ensLastJiOff);
+    ensNeedleAnimId = null;
+    return;
+  }
+  ensNeedleAnimId = requestAnimationFrame(ensNeedleStep);
 }
 
 function drawEnsTuner(etCents, jiOff) {
