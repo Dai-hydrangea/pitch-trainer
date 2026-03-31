@@ -5961,28 +5961,38 @@ applyLanguage();
 // ============================================================
 // Service Worker 登録（PWA・オフライン対応 + 自動更新）
 // ============================================================
+// ============================================================
+// Service Worker 登録 + 強制キャッシュクリア
+// ============================================================
+const APP_VERSION = 'v26';
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
+  window.addEventListener('load', async () => {
+    // 旧キャッシュが残っている場合は全削除してからSW登録
+    const lastVer = localStorage.getItem('app-version');
+    if (lastVer !== APP_VERSION) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map(k => caches.delete(k)));
+      // 古いSWをunregisterしてから再登録
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(r => r.unregister()));
+      localStorage.setItem('app-version', APP_VERSION);
+      if (lastVer) { window.location.reload(); return; }
+    }
+
     navigator.serviceWorker.register('./sw.js').then(reg => {
-      // 新SWがインストールされたら自動リロード
       reg.addEventListener('updatefound', () => {
         const newSW = reg.installing;
         if (!newSW) return;
         newSW.addEventListener('statechange', () => {
-          if (newSW.state === 'activated') {
-            // 新バージョンが有効化 → リロード
-            if (navigator.serviceWorker.controller) {
-              console.log('New version available — reloading…');
-              window.location.reload();
-            }
+          if (newSW.state === 'activated' && navigator.serviceWorker.controller) {
+            window.location.reload();
           }
         });
       });
-      // 定期的に更新チェック（1時間ごと）
-      setInterval(() => reg.update(), 60 * 60 * 1000);
+      // 5分ごとに更新チェック
+      setInterval(() => reg.update(), 5 * 60 * 1000);
     }).catch(e => console.warn('SW registration failed:', e));
   });
-  // controllerが変わったらリロード（別タブで更新された場合）
   let refreshing = false;
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     if (!refreshing) { refreshing = true; window.location.reload(); }
