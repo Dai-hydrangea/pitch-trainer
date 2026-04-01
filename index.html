@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>音程練習アプリ v3.2</title>
+<title>ToneMaster v3.3</title>
 
 <!-- PWA -->
 <link rel="manifest" href="manifest.json">
@@ -11,7 +11,7 @@
 <!-- iOS ホーム画面追加対応 -->
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="音程練習">
+<meta name="apple-mobile-web-app-title" content="ToneMaster">
 <link rel="apple-touch-icon" href="icon.svg">
 <style>
 :root {
@@ -202,7 +202,7 @@ tr:last-child td { border-bottom: none; }
 <body>
 
 <div id="header">
-  <h1>🎵 <span data-i18n="app_title">音程練習アプリ</span> <small style="font-size:0.45em;opacity:0.55;font-weight:400;">v3.2</small></h1>
+  <h1>🎵 <span data-i18n="app_title">ToneMaster</span> <small style="font-size:0.45em;opacity:0.55;font-weight:400;">v3.3</small></h1>
   <div id="a4-ctrl">
     A4 =
     <input type="range" id="a4-slider" min="415" max="446" value="442" step="1">
@@ -712,9 +712,9 @@ tr:last-child td { border-bottom: none; }
 <script>
 const I18N = {
   "app_title": {
-    "ja": "音程練習アプリ",
-    "en": "Pitch Trainer",
-    "zh": "音程练习"
+    "ja": "ToneMaster",
+    "en": "ToneMaster",
+    "zh": "ToneMaster"
   },
   "tab_tuner": {
     "ja": "チューナー",
@@ -2927,12 +2927,12 @@ function startChordOsc() {
   const def = CHORD_DEFS[ensChordType];
   const rootHz = midiToHz(ensRootMidi);
   const voices = ensTuning === 'et' ? def.semitones : def.ratios;
-  const voiceGain = 0.9 / voices.length;
+  const voiceGain = 0.7 / voices.length;
 
   const masterGain = audioCtx.createGain();
   masterGain.gain.value = 0;
   const comp = audioCtx.createDynamicsCompressor();
-  comp.threshold.value = -6; comp.ratio.value = 4;
+  comp.threshold.value = -12; comp.ratio.value = 8;
   comp.attack.value = 0.003; comp.release.value = 0.1;
   masterGain.connect(comp);
   comp.connect(audioCtx.destination);
@@ -2951,7 +2951,7 @@ function startChordOsc() {
     return { osc, g };
   });
 
-  // 接続・start後にフェードイン（startRefToneと同じ手順）
+  // 接続・start後にフェードイン
   masterGain.gain.setTargetAtTime(0.85 * masterVolume, audioCtx.currentTime, 0.05);
 
   ensMasterGain = masterGain;
@@ -3090,7 +3090,7 @@ function playEnsSingleNote(voiceVal, idx) {
   ensSingleOsc.type = 'sine';
   ensSingleOsc.frequency.value = freq;
   const comp = audioCtx.createDynamicsCompressor();
-  comp.threshold.value = -6; comp.ratio.value = 4;
+  comp.threshold.value = -12; comp.ratio.value = 8;
   ensSingleOsc.connect(ensSingleGain);
   ensSingleGain.connect(comp);
   comp.connect(audioCtx.destination);
@@ -5043,8 +5043,12 @@ function drawRhythmHeatmap() {
   let recAudioChunks = [];
   let recAudioBlob = null;
   let recAudioUrl = null;
-  let recAudioElem = null;
-  let recDecodedBuf = null;  // デコード済みAudioBuffer（波形描画用）
+  let recDecodedBuf = null;  // デコード済みAudioBuffer（再生+波形用）
+  let recPlaySource = null;  // AudioBufferSourceNode
+  let recPlayGain = null;    // 再生用GainNode
+  let recPlayStartTime = 0;  // audioCtx.currentTime at play start
+  let recPlayOffset = 0;     // 再生開始オフセット(秒)
+  let recPlaying = false;
   let recMetronomeTimer = null;
   let recMetronomeGain = null;
   let recRAF = null;
@@ -5116,15 +5120,17 @@ function drawRhythmHeatmap() {
   const waveCanvas = document.getElementById('rec-time-wave');
 
   function seekFromCanvasEvent(canvas, clientX) {
-    if (!recAudioElem) return;
+    if (!recDecodedBuf) return;
     const rect = canvas.getBoundingClientRect();
     const pw = rect.width - GRAPH_MG.l - GRAPH_MG.r;
     const relX = clientX - rect.left - GRAPH_MG.l;
     const ratio = Math.max(0, Math.min(1, relX / pw));
     const seekTime = recGraphTStart + ratio * (recGraphTEnd - recGraphTStart);
 
-    recAudioElem.currentTime = seekTime;
-    if (recAudioElem.paused) {
+    if (recPlaying) {
+      recStartPlayback(seekTime);
+    } else {
+      recPlayOffset = seekTime;
       drawRecPitchGraphPlayback(seekTime);
       drawWaveformWithPosition(seekTime);
     }
@@ -5209,20 +5215,18 @@ function drawRhythmHeatmap() {
     }
 
     // 再生中なら停止
-    if (recAudioElem && !recAudioElem.paused) {
-      recAudioElem.pause();
-      recAudioElem.currentTime = 0;
+    if (recPlaying) {
+      recStopPlayback();
       document.getElementById('rec-play-btn').textContent = '▶ 再生';
       if (recPlayRAF) { cancelAnimationFrame(recPlayRAF); recPlayRAF = null; }
     }
+    recPlayOffset = 0;
 
     const bitrate = +qualitySelect.value;
 
-    // MediaRecorder で録音（マイクのみ、エコキャン有効でメトロノーム回り込み抑制）
+    // MediaRecorder で録音（既存のマイクストリームを再利用 — iOSのオーディオセッションを変えない）
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
-      });
+      const stream = sourceNode ? sourceNode.mediaStream : await navigator.mediaDevices.getUserMedia({ audio: true });
       const recOptions = { audioBitsPerSecond: bitrate };
       if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
         recOptions.mimeType = 'audio/webm;codecs=opus';
@@ -5235,31 +5239,16 @@ function drawRhythmHeatmap() {
       recMediaRecorder.onstop = () => {
         recAudioBlob = new Blob(recAudioChunks, { type: recMediaRecorder.mimeType || 'audio/webm' });
         recAudioUrl = URL.createObjectURL(recAudioBlob);
-        recAudioElem = new Audio(recAudioUrl);
-        recAudioElem.muted = true;
-        recAudioElem.addEventListener('loadedmetadata', () => {
-          if (!isFinite(recAudioElem.duration)) {
-            recAudioElem.currentTime = 1e10;
-            recAudioElem.addEventListener('timeupdate', function fixDur() {
-              recAudioElem.removeEventListener('timeupdate', fixDur);
-              recAudioElem.currentTime = 0;
-              recAudioElem.muted = false;
-              setupPlayback();
-            }, { once: true });
-          } else {
-            recAudioElem.muted = false;
+        // AudioBufferにデコード（再生+波形表示の両方に使用）
+        const reader = new FileReader();
+        reader.onload = () => {
+          const decCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+          decCtx.decodeAudioData(reader.result).then(buf => {
+            recDecodedBuf = buf;
             setupPlayback();
-          }
-        });
-        recAudioElem.addEventListener('ended', () => {
-          if (recRepeatActive) {
-            recAudioElem.currentTime = recRepeatStart;
-            recAudioElem.play();
-            return;
-          }
-          document.getElementById('rec-play-btn').textContent = '▶ 再生';
-          if (recPlayRAF) { cancelAnimationFrame(recPlayRAF); recPlayRAF = null; }
-        });
+          }).catch(e => console.warn('Audio decode failed:', e));
+        };
+        reader.readAsArrayBuffer(recAudioBlob);
       };
       recMediaRecorder.start(1000);
     } catch(e) {
@@ -5569,7 +5558,7 @@ function drawRhythmHeatmap() {
   // ── 再生用ユーティリティ ──
   function getAudioDuration() {
     const dataDur = recData.length > 0 ? recData[recData.length - 1].t : 0;
-    const audioDur = (recAudioElem && isFinite(recAudioElem.duration)) ? recAudioElem.duration : dataDur;
+    const audioDur = recDecodedBuf ? recDecodedBuf.duration : dataDur;
     return audioDur || dataDur || 1;
   }
 
@@ -5583,22 +5572,7 @@ function drawRhythmHeatmap() {
     document.getElementById('rec-seek-bar').value = 0;
     document.getElementById('rec-seek-current').textContent = '0:00';
 
-    // AudioBufferにデコード（波形描画用）
-    decodeAudioForWaveform();
-  }
-
-  function decodeAudioForWaveform() {
-    if (!recAudioBlob) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const tempCtx = new (window.AudioContext || window.webkitAudioContext)();
-      tempCtx.decodeAudioData(reader.result).then(buf => {
-        recDecodedBuf = buf;
-        drawStaticWaveform();
-        tempCtx.close();
-      }).catch(e => console.warn('Audio decode failed:', e));
-    };
-    reader.readAsArrayBuffer(recAudioBlob);
+    recPlayOffset = 0;
   }
 
   // ── 再生時波形（音程グラフと同じ時間窓で表示） ──
@@ -5776,26 +5750,71 @@ function drawRhythmHeatmap() {
   }
 
   // ── 再生 ──
+  // ── AudioBufferSource 再生 ──
+  function recStartPlayback(offset) {
+    recStopPlayback();
+    if (!recDecodedBuf || !audioCtx) return;
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    recPlaySource = audioCtx.createBufferSource();
+    recPlayGain = audioCtx.createGain();
+    recPlaySource.buffer = recDecodedBuf;
+    recPlayGain.gain.value = 1.0; // 録音レベルそのまま再生（他機能と音量差を作らない）
+    recPlaySource.connect(recPlayGain);
+    recPlayGain.connect(audioCtx.destination);
+    recPlayOffset = offset;
+    recPlayStartTime = audioCtx.currentTime;
+    recPlaySource.start(0, offset);
+    recPlaying = true;
+    recPlaySource.onended = () => {
+      if (!recPlaying) return;
+      if (recRepeatActive) {
+        recStartPlayback(recRepeatStart);
+        return;
+      }
+      recPlaying = false;
+      document.getElementById('rec-play-btn').textContent = '▶ 再生';
+      if (recPlayRAF) { cancelAnimationFrame(recPlayRAF); recPlayRAF = null; }
+    };
+  }
+  function recStopPlayback() {
+    if (recPlaySource) { try { recPlaySource.onended = null; recPlaySource.stop(); } catch(e){} recPlaySource = null; }
+    if (recPlayGain) { try { recPlayGain.disconnect(); } catch(e){} recPlayGain = null; }
+    recPlaying = false;
+  }
+  function recGetPlaybackTime() {
+    if (!recPlaying) return recPlayOffset;
+    return recPlayOffset + (audioCtx.currentTime - recPlayStartTime);
+  }
+
   document.getElementById('rec-play-btn').addEventListener('click', () => {
-    if (!recAudioElem) return;
-    if (recAudioElem.paused) {
-      recAudioElem.play();
+    if (!recDecodedBuf) return;
+    if (recPlaying) {
+      recPlayOffset = recGetPlaybackTime();
+      recStopPlayback();
+      document.getElementById('rec-play-btn').textContent = '▶ 再生';
+      if (recPlayRAF) { cancelAnimationFrame(recPlayRAF); recPlayRAF = null; }
+    } else {
+      recStartPlayback(recPlayOffset);
       document.getElementById('rec-play-btn').textContent = '⏸ 一時停止';
       recPlayRAF = requestAnimationFrame(playLoop);
-    } else {
-      recAudioElem.pause();
-      document.getElementById('rec-play-btn').textContent = '▶ 再生';
-      if (recPlayRAF) cancelAnimationFrame(recPlayRAF);
     }
   });
 
+  let recPlayLastDraw = 0;
   function playLoop() {
-    if (!recAudioElem || recAudioElem.paused) return;
-    const ct = recAudioElem.currentTime;
+    if (!recPlaying) return;
+    const ct = recGetPlaybackTime();
+    const dur = getAudioDuration();
+
+    // 再生終了チェック
+    if (ct >= dur) {
+      if (recRepeatActive) { recStartPlayback(recRepeatStart); }
+      else { recStopPlayback(); document.getElementById('rec-play-btn').textContent = '▶ 再生'; if (recPlayRAF) { cancelAnimationFrame(recPlayRAF); recPlayRAF = null; } return; }
+    }
 
     // リピート範囲チェック
     if (recRepeatActive && ct >= recRepeatEnd) {
-      recAudioElem.currentTime = recRepeatStart;
+      recStartPlayback(recRepeatStart);
     }
 
     // 再生位置が表示範囲外に出たら自動追従に戻す
@@ -5803,12 +5822,19 @@ function drawRhythmHeatmap() {
       if (ct < recGraphTStart || ct > recGraphTEnd) recManualCenter = null;
     }
 
-    const total = getAudioDuration();
-    document.getElementById('rec-seek-bar').value = (ct / total) * 1000;
+    // シークバーとピッチ表示は毎フレーム（軽量）
+    document.getElementById('rec-seek-bar').value = (ct / dur) * 1000;
     document.getElementById('rec-seek-current').textContent = formatTime(ct);
-    drawRecPitchGraphPlayback(ct);
-    drawWaveformWithPosition(ct);
     updatePlaybackPitch(ct);
+
+    // グラフ描画は250ms間隔（iOS負荷軽減）
+    const now = Date.now();
+    if (now - recPlayLastDraw > 250) {
+      drawRecPitchGraphPlayback(ct);
+      drawWaveformWithPosition(ct);
+      recPlayLastDraw = now;
+    }
+
     recPlayRAF = requestAnimationFrame(playLoop);
   }
 
@@ -5836,10 +5862,10 @@ function drawRhythmHeatmap() {
 
   // シークバー
   document.getElementById('rec-seek-bar').addEventListener('input', function() {
-    if (!recAudioElem) return;
+    if (!recDecodedBuf) return;
     const total = getAudioDuration();
     const t = (+this.value / 1000) * total;
-    recAudioElem.currentTime = t;
+    if (recPlaying) { recStartPlayback(t); } else { recPlayOffset = t; }
     document.getElementById('rec-seek-current').textContent = formatTime(t);
     drawRecPitchGraphPlayback(t);
     drawWaveformWithPosition(t);
@@ -5877,9 +5903,10 @@ function drawRhythmHeatmap() {
     document.getElementById('rec-repeat-info').textContent =
       formatTime(recRepeatStart) + ' 〜 ' + formatTime(recRepeatEnd) + ' をループ';
     // 再生中なら即座にジャンプ
-    if (recAudioElem && !recAudioElem.paused) {
-      if (recAudioElem.currentTime < recRepeatStart || recAudioElem.currentTime > recRepeatEnd) {
-        recAudioElem.currentTime = recRepeatStart;
+    if (recPlaying) {
+      const rct = recGetPlaybackTime();
+      if (rct < recRepeatStart || rct > recRepeatEnd) {
+        recStartPlayback(recRepeatStart);
       }
     }
     // グラフ更新（静止中でも範囲表示）
@@ -5979,7 +6006,7 @@ applyLanguage();
 // ============================================================
 // Service Worker 登録 + 強制キャッシュクリア
 // ============================================================
-const APP_VERSION = 'v30';
+const APP_VERSION = 'v35';
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', async () => {
     // 旧キャッシュが残っている場合は全削除してからSW登録
