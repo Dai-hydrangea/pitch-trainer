@@ -632,8 +632,8 @@ tr:last-child td { border-bottom: none; }
         <strong data-i18n="master_volume">マスター音量</strong>
         <span data-i18n="master_volume_desc">コード再生・基準音・メトロノームの音量</span>
       </div>
-      <input type="range" id="master-vol-slider" min="0" max="150" value="100" step="5">
-      <span class="setting-val" id="master-vol-val">100% (max)</span>
+      <input type="range" id="master-vol-slider" min="0" max="200" value="100" step="5">
+      <span class="setting-val" id="master-vol-val">100%</span>
     </div>
   </div>
   <div class="card">
@@ -1721,7 +1721,7 @@ function resetAllData() {
 document.getElementById('reset-btn').addEventListener('click', resetAllData);
 document.getElementById('measure-reset-btn').addEventListener('click', resetAllData);
 
-// マスター音量（スライダー100% = gain 2.0倍、150% = gain 3.0倍）
+// マスター音量（スライダー100% = gain 2.0倍、200% = gain 4.0倍）
 document.getElementById('master-vol-slider').addEventListener('input', function() {
   masterVolume = (+this.value / 100) * 2.0;
   document.getElementById('master-vol-val').textContent = this.value + '%';
@@ -1904,7 +1904,10 @@ async function startMic() {
     stream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
   }
 
-  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  // audioCtxが既にあれば再利用（他タブとの共有のため）
+  if (!audioCtx || audioCtx.state === 'closed') {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
   if (audioCtx.state === 'suspended') await audioCtx.resume();
   analyser = audioCtx.createAnalyser();
   analyser.fftSize = FFT_SIZE;
@@ -1932,10 +1935,16 @@ function stopAudio() {
   stopRefToneManual();
   if (timerId) { clearInterval(timerId); timerId = null; }
   if (tunerAnimId) { cancelAnimationFrame(tunerAnimId); tunerAnimId = null; tunerLastTs = null; }
-  if (sourceNode) { sourceNode.disconnect(); sourceNode = null; }
-  // audioCtxはフェードアウト完了を待ってからclose（ブツッ防止）
-  const ctx = audioCtx; audioCtx = null;
-  setTimeout(() => { if (ctx) { try { ctx.close(); } catch(e){} } }, 500);
+  // マイクのストリームトラックを停止（権限は保持）
+  if (sourceNode) {
+    try {
+      const stream = sourceNode.mediaStream;
+      if (stream) stream.getTracks().forEach(t => t.stop());
+      sourceNode.disconnect();
+    } catch(e) {}
+    sourceNode = null;
+  }
+  // audioCtxはclose/suspendしない（他のタブが参照＆即時復帰のため）
   lastValidHz = null; lastValidHzTime = 0;
   mNeedle.pos = 0; mNeedle.vel = 0; mNeedle.target = null;
   pNeedle.pos = 0; pNeedle.vel = 0; pNeedle.target = null;
@@ -2923,7 +2932,7 @@ function startChordOsc() {
   const masterGain = audioCtx.createGain();
   masterGain.gain.value = 0;
   const comp = audioCtx.createDynamicsCompressor();
-  comp.threshold.value = -18; comp.ratio.value = 12;
+  comp.threshold.value = -6; comp.ratio.value = 4;
   comp.attack.value = 0.003; comp.release.value = 0.1;
   masterGain.connect(comp);
   comp.connect(audioCtx.destination);
@@ -3081,7 +3090,7 @@ function playEnsSingleNote(voiceVal, idx) {
   ensSingleOsc.type = 'sine';
   ensSingleOsc.frequency.value = freq;
   const comp = audioCtx.createDynamicsCompressor();
-  comp.threshold.value = -18; comp.ratio.value = 12;
+  comp.threshold.value = -6; comp.ratio.value = 4;
   ensSingleOsc.connect(ensSingleGain);
   ensSingleGain.connect(comp);
   comp.connect(audioCtx.destination);
@@ -5209,9 +5218,11 @@ function drawRhythmHeatmap() {
 
     const bitrate = +qualitySelect.value;
 
-    // MediaRecorder で録音（マイクのみ）
+    // MediaRecorder で録音（マイクのみ、エコキャン有効でメトロノーム回り込み抑制）
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+      });
       const recOptions = { audioBitsPerSecond: bitrate };
       if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
         recOptions.mimeType = 'audio/webm;codecs=opus';
@@ -5968,7 +5979,7 @@ applyLanguage();
 // ============================================================
 // Service Worker 登録 + 強制キャッシュクリア
 // ============================================================
-const APP_VERSION = 'v28';
+const APP_VERSION = 'v30';
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', async () => {
     // 旧キャッシュが残っている場合は全削除してからSW登録
@@ -6014,7 +6025,24 @@ function resumeAudioCtx() {
   }
 }
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) resumeAudioCtx();
+  if (!document.hidden) {
+    resumeAudioCtx();
+    // マイクON状態でバックグラウンドから戻った時、ストリームが死んでいたら再接続
+    if (isStarted && sourceNode) {
+      try {
+        const stream = sourceNode.mediaStream;
+        const track = stream && stream.getAudioTracks()[0];
+        if (!track || track.readyState === 'ended') {
+          // ストリームが切れている → 再起動
+          stopAudio();
+          startMic().catch(() => {});
+        }
+      } catch(e) {
+        stopAudio();
+        startMic().catch(() => {});
+      }
+    }
+  }
 });
 document.addEventListener('touchstart', resumeAudioCtx, { passive: true });
 
