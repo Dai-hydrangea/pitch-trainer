@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SoundCraft v3.3 - コード解説書</title>
+<style>
+:root { --bg: #0d1117; --surface: #161b22; --border: #30363d; --accent: #58a6ff; --accent2: #3fb950; --text: #e6edf3; --text2: #8b949e; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; font-size: 15px; line-height: 1.7; padding: 20px; max-width: 960px; margin: 0 auto; }
+h1 { font-size: 28px; color: var(--accent); margin: 30px 0 10px; border-bottom: 2px solid var(--accent); padding-bottom: 8px; }
+h2 { font-size: 22px; color: var(--accent2); margin: 30px 0 10px; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+h3 { font-size: 17px; color: #d2a8ff; margin: 20px 0 8px; }
+h4 { font-size: 15px; color: var(--text); margin: 14px 0 6px; }
+p, li { margin-bottom: 8px; }
+ul, ol { padding-left: 24px; }
+code { background: var(--surface); color: #ffa657; padding: 2px 6px; border-radius: 4px; font-family: 'SF Mono', 'Consolas', monospace; font-size: 13px; }
+pre { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px; overflow-x: auto; font-size: 13px; line-height: 1.5; margin: 10px 0 16px; }
+pre code { background: none; padding: 0; color: var(--text); }
+table { width: 100%; border-collapse: collapse; margin: 10px 0 16px; font-size: 14px; }
+th { background: var(--surface); color: var(--accent); text-align: left; padding: 8px 10px; border: 1px solid var(--border); }
+td { padding: 6px 10px; border: 1px solid var(--border); vertical-align: top; }
+tr:nth-child(even) td { background: #161b2280; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin: 12px 0; }
+.tag { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; margin-right: 4px; }
+.tag-js { background: #f0d94020; color: #f0d940; border: 1px solid #f0d94040; }
+.tag-html { background: #e3432020; color: #e34320; border: 1px solid #e3432040; }
+.tag-css { background: #264de420; color: #58a6ff; border: 1px solid #264de440; }
+.tag-audio { background: #3fb95020; color: #3fb950; border: 1px solid #3fb95040; }
+.toc { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px 24px; margin: 20px 0; }
+.toc a { color: var(--accent); text-decoration: none; }
+.toc a:hover { text-decoration: underline; }
+.toc li { margin: 4px 0; }
+.diagram { background: #0d1117; border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin: 10px 0; font-family: monospace; font-size: 13px; white-space: pre; overflow-x: auto; color: var(--accent); }
+.note { background: #1a3a5c; border-left: 4px solid var(--accent); padding: 10px 14px; border-radius: 0 6px 6px 0; margin: 10px 0; font-size: 14px; }
+.warn { background: #3d2b00; border-left: 4px solid #d29922; padding: 10px 14px; border-radius: 0 6px 6px 0; margin: 10px 0; font-size: 14px; }
+nav { position: sticky; top: 0; background: var(--bg); z-index: 10; padding: 8px 0; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
+nav a { color: var(--accent); margin-right: 16px; text-decoration: none; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<h1>SoundCraft v3.3 コード解説書</h1>
+<p style="color:var(--text2);">楽器練習総合アプリの完全なコード解説。C++の基本知識がある方向け。</p>
+<p style="color:var(--text2);">ファイル: <code>index.html</code> (約6,375行) — HTML + CSS + JavaScript の単一ファイルアプリケーション</p>
+
+<div class="toc">
+<h3>目次</h3>
+<ol>
+<li><a href="#overview">全体構成</a></li>
+<li><a href="#tech">使用技術の解説（C++経験者向け）</a></li>
+<li><a href="#structure">ファイル構造</a></li>
+<li><a href="#audio">音声システム（Web Audio API）</a></li>
+<li><a href="#pitch">ピッチ検出アルゴリズム</a></li>
+<li><a href="#tuner">チューナー（メーター描画・物理シミュレーション）</a></li>
+<li><a href="#rhythm">リズム練習（メトロノーム）</a></li>
+<li><a href="#harmony">ハーモニー（コード再生・純正律/平均律）</a></li>
+<li><a href="#attack">アタック分析（波形・スペクトル）</a></li>
+<li><a href="#recorder">レコーダー（録音・再生・波形）</a></li>
+<li><a href="#report">レポート（統計・CSV出力）</a></li>
+<li><a href="#tutorial">チュートリアルシステム</a></li>
+<li><a href="#i18n">多言語対応（i18n）</a></li>
+<li><a href="#sw">Service Worker（オフライン・更新）</a></li>
+<li><a href="#ios">iOS固有の対策</a></li>
+<li><a href="#funcs">全関数一覧</a></li>
+<li><a href="#vars">グローバル変数一覧</a></li>
+</ol>
+</div>
+
+<!-- ============================================================ -->
+<h1 id="overview">1. 全体構成</h1>
+
+<p>SoundCraftは<strong>単一のHTMLファイル</strong>で構成されたPWA（Progressive Web App）です。C++で言えば「1つの.cppファイルに全てが入っている」状態です。</p>
+
+<div class="diagram">
+index.html (6,375行)
+├── &lt;style&gt;    ... CSS (200行)     ← 見た目の定義
+├── &lt;body&gt;     ... HTML (1,260行)  ← 画面のレイアウト
+└── &lt;script&gt;   ... JS (4,900行)   ← プログラムのロジック
+
+sw.js (35行)  ← Service Worker（オフライン対応）
+manifest.json ← PWA設定ファイル
+icon.svg      ← アプリアイコン
+</div>
+
+<h3>C++との対比</h3>
+<table>
+<tr><th>C++の概念</th><th>JavaScript(このアプリ)での対応</th></tr>
+<tr><td>ヘッダファイル (.h)</td><td>グローバル変数宣言（1485〜1650行）</td></tr>
+<tr><td>関数定義 (.cpp)</td><td>function宣言（1650行以降）</td></tr>
+<tr><td>main()</td><td>ページ読み込み時に自動実行される各イベントリスナー</td></tr>
+<tr><td>クラス</td><td>関連する変数+関数のグループ（名前空間で分離）</td></tr>
+<tr><td>ポインタ</td><td>オブジェクト参照（全て参照渡し）</td></tr>
+<tr><td>#include</td><td>&lt;script src="..."&gt; や import（このアプリでは不使用）</td></tr>
+<tr><td>コンパイル</td><td>不要（ブラウザが直接解釈）</td></tr>
+<tr><td>スレッド</td><td>シングルスレッド + 非同期処理（async/await, RAF）</td></tr>
+</table>
+
+<h3>データフロー概要</h3>
+<div class="diagram">
+マイク → getUserMedia → AudioContext → AnalyserNode → FFTバッファ
+                                                         ↓
+                                              detectLoop() (50ms間隔)
+                                                         ↓
+                                              自己相関 → 周波数(Hz)
+                                                         ↓
+                                              Hz → MIDI → 音名 + セント
+                                                         ↓
+                                    ┌─────────┬──────────┼──────────┐
+                                    ↓         ↓          ↓          ↓
+                                チューナー  ハーモニー  アタック  レコーダー
+                                メーター表示 JI/ET偏差  波形描画  データ蓄積
+</div>
+
+<!-- ============================================================ -->
+<h1 id="tech">2. 使用技術の解説（C++経験者向け）</h1>
+
+<h3>JavaScript の基本</h3>
+<div class="card">
+<p>JavaScriptはC++と似た構文を持つ動的型付け言語です。主な違い：</p>
+<pre><code>// C++: int x = 42;
+// JS:
+let x = 42;        // 変数（再代入可能）← C++のauto変数に近い
+const y = 100;     // 定数（再代入不可）← C++のconstに近い
+
+// C++: void foo(int a) { ... }
+// JS:
+function foo(a) { ... }                    // 通常の関数
+const bar = (a) => { ... };               // アロー関数（ラムダ式に近い）
+const baz = async (a) => { await ...; };  // 非同期関数
+
+// C++: std::vector&lt;int&gt; v = {1, 2, 3};
+// JS:
+const arr = [1, 2, 3];              // 配列
+arr.push(4);                         // 追加
+arr.filter(x => x > 2);            // フィルタ → [3, 4]
+arr.map(x => x * 2);               // 変換 → [2, 4, 6, 8]
+
+// C++: std::map&lt;std::string, int&gt;
+// JS:
+const obj = { name: 'C4', midi: 60 };  // オブジェクト（連想配列）
+obj.name;  // 'C4'
+</code></pre>
+</div>
+
+<h3>Web Audio API</h3>
+<div class="card">
+<p>音声処理のためのブラウザAPI。C++のオーディオライブラリ（PortAudio等）に相当。</p>
+<pre><code>// AudioContextは音声処理の中心（C++のaudioEngineクラスに相当）
+audioCtx = new AudioContext();
+
+// ノードを接続してオーディオグラフを構築（シグナルチェーン）
+// マイク → Analyser → (ピッチ検出)
+sourceNode = audioCtx.createMediaStreamSource(stream);
+analyser = audioCtx.createAnalyser();
+sourceNode.connect(analyser);
+
+// オシレーター → Gain → Compressor → スピーカー
+osc = audioCtx.createOscillator();
+gain = audioCtx.createGain();
+osc.connect(gain);
+gain.connect(audioCtx.destination);  // destination = スピーカー
+osc.start();
+</code></pre>
+<div class="diagram">
+[マイク] → [MediaStreamSource] → [AnalyserNode] → (FFTデータ取得)
+                                        ↑ connect()で接続
+
+[OscillatorNode] → [GainNode] → [DynamicsCompressor] → [destination=スピーカー]
+     周波数設定      音量制御          音割れ防止
+</div>
+</div>
+
+<h3>Canvas描画</h3>
+<div class="card">
+<p>HTMLの<code>&lt;canvas&gt;</code>要素はC++のグラフィックスライブラリ（OpenGL, SDL等）に相当。2Dコンテキストで描画。</p>
+<pre><code>const canvas = document.getElementById('tuner-canvas');
+const ctx = canvas.getContext('2d');
+
+// 矩形を描画（C++: SDL_FillRect()に相当）
+ctx.fillStyle = '#58a6ff';      // 色を設定
+ctx.fillRect(x, y, w, h);       // 塗りつぶし矩形
+
+// 線を描画
+ctx.beginPath();
+ctx.moveTo(x1, y1);            // ペンを移動
+ctx.lineTo(x2, y2);            // 線を引く
+ctx.strokeStyle = '#3fb950';
+ctx.stroke();                    // 実際に描画
+
+// テキスト
+ctx.font = '14px monospace';
+ctx.fillText('C4', x, y);
+</code></pre>
+</div>
+
+<h3>requestAnimationFrame (RAF)</h3>
+<div class="card">
+<p>画面の更新に同期してコールバックを呼ぶ仕組み。C++のゲームループに相当。</p>
+<pre><code>// C++のゲームループ:
+// while(running) { update(); render(); sleep(16); }
+
+// JavaScriptのRAFループ:
+function animationLoop(timestamp) {
+    update(timestamp);    // 状態更新
+    render();             // 描画
+    requestAnimationFrame(animationLoop);  // 次フレームを予約
+}
+requestAnimationFrame(animationLoop);  // 開始
+</code></pre>
+</div>
+
+<!-- ============================================================ -->
+<h1 id="structure">3. ファイル構造</h1>
+
+<table>
+<tr><th>行範囲</th><th>内容</th><th>説明</th></tr>
+<tr><td>1-16</td><td>HTML宣言・meta</td><td>PWA設定、viewport、テーマカラー</td></tr>
+<tr><td>17-200</td><td>CSS</td><td>ダークテーマ、レイアウト、アニメーション</td></tr>
+<tr><td>201-225</td><td>ヘッダー・タブ</td><td>A4基準音スライダー、マイクボタン、7タブ</td></tr>
+<tr><td>226-290</td><td>チューナーパネル</td><td>音名表示、メーター、ピッチ履歴グラフ</td></tr>
+<tr><td>291-400</td><td>レコーダーパネル</td><td>録音UI、音程グラフ、波形、再生コントロール</td></tr>
+<tr><td>401-500</td><td>ハーモニーパネル</td><td>コード選択、音程モニター、位相ホイール</td></tr>
+<tr><td>501-540</td><td>アタックパネル</td><td>波形キャンバス、スペクトルキャンバス</td></tr>
+<tr><td>541-620</td><td>リズムパネル</td><td>BPM、拍子、振り子、ヒートマップ</td></tr>
+<tr><td>621-700</td><td>設定パネル</td><td>楽器、感度、言語、音量、チュートリアル</td></tr>
+<tr><td>700-1465</td><td>翻訳データ(i18n)</td><td>日本語/英語/中国語の翻訳オブジェクト</td></tr>
+<tr><td>1466-1500</td><td>定数・ユーティリティ</td><td>MIDI変換、音名配列、A4基準周波数</td></tr>
+<tr><td>1500-1600</td><td>グローバル変数</td><td>音声、状態機械、物理パラメータ</td></tr>
+<tr><td>1650-1760</td><td>UIイベントリスナー</td><td>スライダー、ボタン、タブ切り替え</td></tr>
+<tr><td>1760-1960</td><td>マイク・基準音</td><td>startMic(), stopAudio(), 基準音再生</td></tr>
+<tr><td>1960-2350</td><td>ピッチ検出</td><td>自己相関、HPS、状態機械</td></tr>
+<tr><td>2350-2560</td><td>表示更新</td><td>音名表示、メーター描画、グラフ</td></tr>
+<tr><td>2560-2790</td><td>レポート</td><td>統計テーブル、CSV出力、チャート</td></tr>
+<tr><td>2790-3220</td><td>ハーモニー</td><td>コード再生、JI/ET、音程モニター</td></tr>
+<tr><td>3220-3570</td><td>アタック分析</td><td>波形描画、スペクトル、onset検出</td></tr>
+<tr><td>3570-3740</td><td>ハーモニー可視化</td><td>位相ホイール、うなり波形</td></tr>
+<tr><td>3740-4130</td><td>音程課題</td><td>インターバル練習、スコア</td></tr>
+<tr><td>4130-4560</td><td>リズム練習</td><td>メトロノーム、Tapテンポ、ヒートマップ</td></tr>
+<tr><td>4560-5990</td><td>レコーダー</td><td>録音、再生、波形、音程グラフ、リピート</td></tr>
+<tr><td>5990-6080</td><td>起動・SW登録</td><td>Service Worker、iOS対策、初期化</td></tr>
+<tr><td>6080-6375</td><td>チュートリアル</td><td>スポットライト式ガイド、7セット</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<h1 id="audio">4. 音声システム（Web Audio API）</h1>
+
+<h3>マイク入力の初期化: <code>startMic()</code> (1886行)</h3>
+<div class="card">
+<pre><code>async function startMic() {
+  // 1. マイクの許可を取得（iOS用の特別な設定付き）
+  const stream = await navigator.mediaDevices.getUserMedia({
+    audio: {
+      echoCancellation: false,    // エコーキャンセルOFF（ピッチ検出精度のため）
+      noiseSuppression: false,    // ノイズ抑制OFF
+      autoGainControl: false      // 自動ゲインOFF
+    }
+  });
+
+  // 2. AudioContextを作成（既存があれば再利用）
+  if (!audioCtx || audioCtx.state === 'closed') {
+    audioCtx = new AudioContext();
+  }
+
+  // 3. オーディオグラフを構築
+  analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 4096;  // FFTサイズ（周波数分解能に影響）
+  sourceNode = audioCtx.createMediaStreamSource(stream);
+  sourceNode.connect(analyser);
+
+  // 4. 50ms間隔でピッチ検出ループを開始
+  timerId = setInterval(detectLoop, 50);
+}</code></pre>
+<div class="note">C++で言えば、PortAudioのストリームを開いてコールバックを設定するのに相当。<code>setInterval</code>はC++のタイマー割り込みに近い。</div>
+</div>
+
+<h3>音声の停止: <code>stopAudio()</code> (1933行)</h3>
+<div class="card">
+<p>重要: <code>audioCtx</code>を<strong>closeしない</strong>。他のタブ（ハーモニー等）が同じコンテキストを参照しているため。マイクのストリームトラックだけ停止する。</p>
+<pre><code>function stopAudio() {
+  // マイクのストリームトラックを停止
+  if (sourceNode) {
+    const stream = sourceNode.mediaStream;
+    stream.getTracks().forEach(t => t.stop());  // トラック解放
+    sourceNode.disconnect();
+  }
+  // audioCtxはcloseしない！（他タブが使用中）
+  // 検出ループを停止
+  clearInterval(timerId);
+}</code></pre>
+</div>
+
+<!-- ============================================================ -->
+<h1 id="pitch">5. ピッチ検出アルゴリズム</h1>
+
+<h3>メインの検出ループ: <code>detectLoop()</code> (1961行)</h3>
+<div class="card">
+<p>50ミリ秒ごとに呼ばれる。マイクからの音声データを分析し、音程を検出する。</p>
+<pre><code>function detectLoop() {
+  // 1. FFTバッファからデータ取得
+  const buf = new Float32Array(analyser.fftSize);  // 4096サンプル
+  analyser.getFloatTimeDomainData(buf);             // 時間領域データ
+
+  // 2. RMS（音量）を計算
+  smoothedRms = smoothedRms * 0.5 + calcRMS(buf) * 0.5;  // EMAスムージング
+
+  // 3. 音量が閾値以下なら「無音」
+  if (smoothedRms < SILENCE_THRESH * マイク感度) {
+    → 状態を 'silent' に遷移
+    return;
+  }
+
+  // 4. 自己相関法でピッチ検出
+  let hz = autocorrelate(buf, audioCtx.sampleRate);
+
+  // 5. 検出失敗ならHPS法で再試行
+  if (hz < 0) hz = hpsDetect(audioCtx.sampleRate);
+
+  // 6. Hz → MIDI番号 → 音名 + セント偏差
+  const midiFloat = hzToMidi(hz);        // 69 + 12 * log2(hz / A4_HZ)
+  const midiInt = Math.round(midiFloat);  // 最も近い半音
+  const cents = (midiFloat - midiInt) * 100;  // 偏差（セント）
+
+  // 7. 状態機械で音の状態を管理
+  //    silent → attack → stable
+}</code></pre>
+</div>
+
+<h3>自己相関法: <code>autocorrelate()</code> (2232行)</h3>
+<div class="card">
+<p>YIN（Yet another INharmonicity estimator）ベースの自己相関ピッチ検出。信号の周期性を検出する。</p>
+<pre><code>// 原理: 信号を自分自身とずらして比較
+// ずらし量(lag)が信号の周期と一致すると相関が最大になる
+//
+// C++風の疑似コード:
+// for (lag = minLag; lag < maxLag; lag++) {
+//     sum = 0;
+//     for (i = 0; i < N; i++) {
+//         diff = buf[i] - buf[i + lag];
+//         sum += diff * diff;  // 差の二乗和
+//     }
+//     if (sum < threshold) {
+//         frequency = sampleRate / lag;
+//         return frequency;
+//     }
+// }
+
+function autocorrelate(buf, sampleRate) {
+  // 1. 信号の先頭と末尾の無音部分をトリミング
+  // 2. 各ラグで差分の二乗和（CMND）を計算
+  // 3. 閾値以下の最初のディップ（谷）を探す
+  // 4. 放物線補間で精度を向上
+  // 5. sampleRate / bestLag = 周波数(Hz)
+}</code></pre>
+<div class="note">
+<strong>なぜ自己相関？</strong> FFTだけでは倍音が基音より強い場合に誤検出する（管楽器でよくある）。自己相関は基本周期を直接検出するので堅牢。
+</div>
+</div>
+
+<h3>HPS法: <code>hpsDetect()</code> (2321行)</h3>
+<div class="card">
+<p>Harmonic Product Spectrum。自己相関が失敗した時のフォールバック。</p>
+<pre><code>// 原理: FFTスペクトルを1倍、2倍、3倍...に圧縮して掛け合わせる
+// 基音の位置で全ての倍音が重なり、ピークが出る
+//
+//   元のスペクトル:     |  |  |  |  |  （倍音が並ぶ）
+//   2倍に圧縮:         | | | | |
+//   3倍に圧縮:         ||| ||
+//   掛け合わせ:        ↑ ← ここが基音
+
+function hpsDetect(sampleRate) {
+  const fdBuf = new Uint8Array(analyser.frequencyBinCount);
+  analyser.getByteFrequencyData(fdBuf);
+  // 1〜5次の倍音を掛け合わせて基音を特定
+}</code></pre>
+</div>
+
+<h3>状態機械（State Machine）</h3>
+<div class="card">
+<div class="diagram">
+               音を検出
+  [SILENT] ─────────→ [ATTACK]
+     ↑                    │
+     │ 無音が120ms続く     │ 150ms経過
+     │                    ↓
+     └──────────── [STABLE]
+                    音が安定
+                    ここでデータ記録
+</div>
+<table>
+<tr><th>状態</th><th>意味</th><th>処理</th></tr>
+<tr><td>silent</td><td>音なし</td><td>表示をリセット</td></tr>
+<tr><td>attack</td><td>吹き始め</td><td>波形キャプチャ開始、まだ不安定</td></tr>
+<tr><td>stable</td><td>音が安定</td><td>チューナー表示更新、統計記録、ハーモニー判定</td></tr>
+</table>
+</div>
+
+<!-- ============================================================ -->
+<h1 id="tuner">6. チューナー（メーター描画・物理シミュレーション）</h1>
+
+<h3>スプリング・ダンパー物理: <code>drawTuner()</code> / <code>springStep()</code></h3>
+<div class="card">
+<p>市販チューナーの「針がゆっくり止まる」動きを物理シミュレーションで再現。</p>
+<pre><code>// バネ-ダンパー系の運動方程式:
+//   F = -K * (pos - target) - C * velocity
+//   acceleration = F
+//   velocity += acceleration * dt
+//   position += velocity * dt
+//
+// K = 16  (バネ定数: 大きいほど速く追従)
+// C = 7.5 (減衰係数: 臨界減衰≒2√K≒8)
+
+const mNeedle = { pos: 0, vel: 0, target: null };
+
+function springStep(needle, target, dt) {
+  const force = -NEEDLE_K * (needle.pos - target) - NEEDLE_C * needle.vel;
+  needle.vel += force * dt;
+  needle.pos += needle.vel * dt;
+}</code></pre>
+<div class="note">
+<strong>C++経験者向け:</strong> これはゲーム物理でよく使われる「減衰振動」と同じです。Euler法で数値積分しています。
+</div>
+</div>
+
+<h3>メーター描画: <code>drawTuner()</code> (2397行)</h3>
+<div class="card">
+<p>Canvas上に-50〜+50セントの目盛りとバー（針）を描画。</p>
+<pre><code>function drawTuner(cents, hz, canvasId) {
+  // 1. キャンバスを取得しRetinaディスプレイ対応
+  const dpr = window.devicePixelRatio;  // 2x on Retina
+  canvas.width = W * dpr;
+  ctx.scale(dpr, dpr);
+
+  // 2. 目盛り線を描画（-50, -40, ..., +50）
+  for (let v = -50; v <= 50; v += 10) {
+    const x = center + v * scale;
+    ctx.strokeStyle = v === 0 ? '#3fb950' : '#21262d';
+    // 中央(0)は緑、他はグレー
+  }
+
+  // 3. バー（針）を描画
+  //    springStep()で計算済みのneedle.posを使用
+  const barX = center + needle.pos * scale;
+  ctx.fillStyle = 色（±5¢=緑、±15¢=黄、それ以上=赤）;
+  ctx.fillRect(min(center, barX), 16, |barX - center|, height);
+}</code></pre>
+</div>
+
+<!-- ============================================================ -->
+<h1 id="rhythm">7. リズム練習（メトロノーム）</h1>
+
+<h3>メトロノームのスケジューリング: <code>scheduleRhythm()</code> (4293行)</h3>
+<div class="card">
+<p>Web Audio APIのスケジューリングを使って正確なビート生成。<code>setTimeout</code>は不正確なので、<code>audioCtx.currentTime</code>ベースで制御。</p>
+<pre><code>function scheduleRhythm() {
+  // 1. 次のビート時刻を計算
+  const beatInterval = 60.0 / rhythmBpm;  // 秒/ビート
+  rhythmNextBeatTime += beatInterval;
+
+  // 2. クリック音をスケジュール
+  scheduleClick(rhythmNextBeatTime, isAccent, false);
+
+  // 3. 振り子アニメーション更新
+  updateBeatDots(rhythmBeatCount % rhythmMeter, true);
+
+  // 4. 次のビートを予約
+  rhythmScheduleTimer = setTimeout(scheduleRhythm, ...);
+}
+
+function scheduleClick(time, isAccent, isSub) {
+  // OscillatorNodeで短いクリック音を生成
+  const osc = audioCtx.createOscillator();
+  osc.frequency.value = isAccent ? 1000 : 800;  // Hz
+  osc.type = 'square';
+  // time秒後に再生開始、0.03秒後に停止
+  osc.start(time);
+  osc.stop(time + 0.03);
+}</code></pre>
+</div>
+
+<h3>Tapテンポ: <code>tapDetectLoop()</code> (4209行)</h3>
+<div class="card">
+<p>マイクからの音声入力でタップ（手拍子）を検出し、BPMを自動計算。</p>
+<pre><code>// 4回のタップの間隔からBPMを計算
+// interval = (tap4_time - tap1_time) / 3
+// BPM = 60 / interval</code></pre>
+</div>
+
+<!-- ============================================================ -->
+<h1 id="harmony">8. ハーモニー（コード再生・純正律/平均律）</h1>
+
+<h3>コード定義: <code>CHORD_DEFS</code> (2791行)</h3>
+<div class="card">
+<pre><code>const CHORD_DEFS = {
+  // 名前        純正律の比率          平均律の半音数      役割
+  'M':  { ratios: [1, 5/4, 3/2],     semitones: [0,4,7],   roles: ['根音','第3音','第5音'] },
+  'm':  { ratios: [1, 6/5, 3/2],     semitones: [0,3,7],   roles: ['根音','第3音','第5音'] },
+  'M7': { ratios: [1, 5/4, 3/2, 15/8], semitones: [0,4,7,11], ... },
+  '7':  { ratios: [1, 5/4, 3/2, 16/9], semitones: [0,4,7,10], ... },
+  'm7': { ratios: [1, 6/5, 3/2, 16/9], semitones: [0,3,7,10], ... },
+  'dim': { ratios: [1, 6/5, 64/45],    semitones: [0,3,6],    ... },
+  'sus4': { ratios: [1, 4/3, 3/2],     semitones: [0,5,7],    ... },
+};
+
+// 純正律: 周波数 = rootHz * ratio  (例: C Major = 262Hz, 327.5Hz, 393Hz)
+// 平均律: 周波数 = midiToHz(rootMidi + semitone)  (例: C Major = 262Hz, 330Hz, 392Hz)
+//
+// 違い: 長3度(E)が純正律では-14¢低い → これがハーモニーの「うなり」を消す</code></pre>
+</div>
+
+<h3>コード再生: <code>startChordOsc()</code> (2914行)</h3>
+<div class="card">
+<pre><code>function startChordOsc() {
+  const def = CHORD_DEFS[ensChordType];  // 例: 'M'
+  const rootHz = midiToHz(ensRootMidi);   // 例: 262Hz (C4)
+
+  // 各音のオシレーターを生成
+  ensOscs = voices.map((v, i) => {
+    const osc = audioCtx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.value = ensTuning === 'et'
+      ? midiToHz(ensRootMidi + v)   // 平均律: MIDI半音数で計算
+      : rootHz * v;                  // 純正律: 周波数比で計算
+    osc.start();
+    return { osc, gain };
+  });
+}</code></pre>
+</div>
+
+<h3>純正律 vs 平均律の違い</h3>
+<div class="card">
+<table>
+<tr><th>音程</th><th>純正律(比率)</th><th>平均律(セント)</th><th>差</th></tr>
+<tr><td>長3度 (E)</td><td>5/4 = 386.3¢</td><td>400¢</td><td><strong>-13.7¢</strong></td></tr>
+<tr><td>完全5度 (G)</td><td>3/2 = 702.0¢</td><td>700¢</td><td>+2.0¢</td></tr>
+<tr><td>短3度 (Eb)</td><td>6/5 = 315.6¢</td><td>300¢</td><td>+15.6¢</td></tr>
+<tr><td>長7度 (B)</td><td>15/8 = 1088.3¢</td><td>1100¢</td><td>-11.7¢</td></tr>
+</table>
+<p>純正律のコードはうなりがなく「澄んだ響き」になります。平均律は全てのキーで均等に妥協した音律。</p>
+</div>
+
+<!-- ============================================================ -->
+<h1 id="attack">9. アタック分析（波形・スペクトル）</h1>
+
+<h3>波形キャプチャの仕組み</h3>
+<div class="card">
+<div class="diagram">
+時間 →
+[....前の音....|  無音  |アタック|.... 安定した音 ....]
+               ← pre-roll →← capture →
+                (250ms)      (700ms)
+
+pre-rollバッファ: 常に最新5フレーム(250ms)を保持（リングバッファ）
+attackが検出された瞬間、pre-rollを先頭に積んで
+その後14フレーム(700ms)を追加キャプチャ
+</div>
+</div>
+
+<h3>onset検出: <code>detectOnsetMs()</code> (3255行)</h3>
+<div class="card">
+<p>キャプチャした波形データから、音の立ち上がり位置を自動検出。</p>
+<pre><code>function detectOnsetMs(timeFull, sampleRate) {
+  // RMSエンベロープを計算し、最大値の20%を超えた最初の位置をonsetとする
+  // pre-roll区間を探索して、音が始まった正確な位置を返す
+}</code></pre>
+</div>
+
+<h3>スペクトル描画: <code>drawAttackSpectrum()</code> (3455行)</h3>
+<div class="card">
+<p>FFTデータから周波数スペクトルを描画。倍音構造（ハーモニクス）を可視化。</p>
+<pre><code>// 対数周波数スケール（音楽的に意味のある表示）
+// X軸: 100Hz 〜 4000Hz（対数）
+// Y軸: -60dB 〜 0dB
+// ▲マーカー: 理論上の倍音位置（基音 × 1, 2, 3, 4, ...）</code></pre>
+</div>
+
+<!-- ============================================================ -->
+<h1 id="recorder">10. レコーダー（録音・再生・波形）</h1>
+
+<h3>録音の仕組み</h3>
+<div class="card">
+<div class="diagram">
+録音開始:
+  既存のマイクストリーム (sourceNode.mediaStream)
+       ↓
+  MediaRecorder (Opus 32/64/128kbps)
+       ↓
+  1秒ごとにチャンク化 → recAudioChunks[]に蓄積
+       ↓ 同時に
+  detectLoop()のデータを recData[]に蓄積
+  [{t:0.1, hz:440, midi:69, cents:0, rms:0.3}, ...]
+
+録音停止:
+  Blob化 → FileReader → decodeAudioData → AudioBuffer
+  ↓                                          ↓
+  保存用(.webm)                         再生用 & 波形描画用
+</div>
+<div class="warn">
+<strong>重要:</strong> 録音には既存のマイクストリームを再利用する。新しいgetUserMediaを呼ぶとiOSのAGC（自動ゲインコントロール）が変わり、他の機能の音量が狂う。
+</div>
+</div>
+
+<h3>再生: AudioBufferSource方式</h3>
+<div class="card">
+<p>当初はHTML Audio要素で再生していたが、iOS WKWebViewでのWebM再生が不安定（カクつき）だったため、AudioBufferSourceNodeに変更。</p>
+<pre><code>function recStartPlayback(offset) {
+  // デコード済みPCMデータを直接再生（ブラウザのデコーダに依存しない）
+  recPlaySource = audioCtx.createBufferSource();
+  recPlaySource.buffer = recDecodedBuf;  // Float32Arrayのデータ
+  recPlaySource.connect(audioCtx.destination);
+  recPlaySource.start(0, offset);  // offset秒目から再生
+}
+
+// 再生位置の計算:
+function recGetPlaybackTime() {
+  return recPlayOffset + (audioCtx.currentTime - recPlayStartTime);
+}</code></pre>
+</div>
+
+<h3>ドラッグスクロール</h3>
+<div class="card">
+<p>タップ（シーク）とドラッグ（スクロール）を区別。5px以上動いたらドラッグと判定。</p>
+<pre><code>// mousedown: ドラッグ開始位置を記録
+// mousemove: 移動量が5px以上ならdragフラグON → グラフ表示範囲をスクロール
+// mouseup: dragフラグがOFFならシーク（タップ）、ONならスクロール終了</code></pre>
+</div>
+
+<!-- ============================================================ -->
+<h1 id="report">11. レポート（統計・CSV出力）</h1>
+
+<div class="card">
+<p>各音名ごとに偏差の統計を記録。</p>
+<pre><code>// noteData[midi] = { count, sumCents, maxCents, minCents }
+// 全音名について:
+//   平均偏差 = sumCents / count
+//   傾向 = 平均偏差が +5¢以上なら「高め」、-5¢以下なら「低め」、それ以外は「良好」
+
+function exportCSV() {
+  // CSVフォーマットで出力（Excelで開ける）
+  // 音名, 回数, 平均偏差(¢), 傾向
+}</code></pre>
+</div>
+
+<!-- ============================================================ -->
+<h1 id="tutorial">12. チュートリアルシステム</h1>
+
+<div class="card">
+<p>スポットライト式の対話型チュートリアル。6つのセットが定義済み。</p>
+<pre><code>// 構造:
+// T_SETS = {
+//   overview: { tab: 'measure', steps: [{target, pos, ja, en, zh}, ...] },
+//   tuner:    { ... },
+//   rhythm:   { ... },
+//   harmony:  { ... },
+//   attack:   { ... },
+//   recorder: { ... },
+// }
+
+function showStep(idx) {
+  // 1. ターゲット要素を取得
+  // 2. スクロールして画面に表示
+  // 3. スポットライト（box-shadow: 0 0 0 9999px でオーバーレイ）
+  // 4. 吹き出しを配置（上/下を自動判定）
+}
+
+// チュートリアル中にターゲット要素をタップ可能にする特殊処理:
+backdrop.addEventListener('click', (e) => {
+  // spotlight内のクリックはターゲット要素に転送
+  const rect = el.getBoundingClientRect();
+  if (クリック位置がrect内) el.click();
+});</code></pre>
+</div>
+
+<!-- ============================================================ -->
+<h1 id="i18n">13. 多言語対応（i18n）</h1>
+
+<div class="card">
+<pre><code>// 翻訳データ（700〜1465行）
+const I18N = {
+  "mic_start": { ja: "マイク開始", en: "Start", zh: "开始" },
+  "mic_stop":  { ja: "停止",      en: "Stop",  zh: "停止" },
+  ...
+};
+
+// 翻訳関数
+function t(key) {
+  const entry = I18N[key];
+  return entry[currentLang] || entry.ja || key;  // フォールバック
+}
+
+// DOM適用: data-i18n属性を持つ全要素のテキストを更新
+function applyLanguage() {
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    el.textContent = t(el.dataset.i18n);
+  });
+}
+
+// HTML側: &lt;button data-i18n="mic_start"&gt;マイク開始&lt;/button&gt;
+// → applyLanguage()で "Start" に変わる（英語選択時）</code></pre>
+</div>
+
+<!-- ============================================================ -->
+<h1 id="sw">14. Service Worker（オフライン・更新）</h1>
+
+<div class="card">
+<pre><code>// sw.js: Network First 戦略
+// 1. まずネットワークからファイルを取得
+// 2. 成功したらキャッシュに保存
+// 3. ネットワーク失敗ならキャッシュから返す
+
+// index.html内のバージョン管理:
+const APP_VERSION = 'v35';
+// ページ読み込み時にlocalStorageのバージョンと比較
+// 不一致 → 全キャッシュ削除 → SW再登録 → リロード
+// → iOSで古いキャッシュが残る問題を解決</code></pre>
+</div>
+
+<!-- ============================================================ -->
+<h1 id="ios">15. iOS固有の対策</h1>
+
+<div class="card">
+<table>
+<tr><th>問題</th><th>原因</th><th>対策</th></tr>
+<tr><td>マイクが動かない</td><td>iOSはユーザー操作なしでAudioContext開始不可</td><td>ボタンクリック時にresume()</td></tr>
+<tr><td>バックグラウンドでマイク停止</td><td>iOSがストリームを切る</td><td>visibilitychangeでストリーム状態チェック→再接続</td></tr>
+<tr><td>WebM再生がカクつく</td><td>WKWebViewのWebMデコーダが不安定</td><td>AudioBufferSourceで再生</td></tr>
+<tr><td>エコキャン/AGCが音を変える</td><td>getUserMediaの制約が異なると設定が変わる</td><td>既存ストリームを再利用</td></tr>
+<tr><td>AudioContextがsuspend</td><td>iOSのバッテリー最適化</td><td>touchstartイベントでresume()</td></tr>
+</table>
+</div>
+
+<!-- ============================================================ -->
+<h1 id="funcs">16. 全関数一覧</h1>
+
+<table>
+<tr><th>#</th><th>関数名</th><th>行</th><th>機能</th></tr>
+<tr><td>1</td><td><code>t(key)</code></td><td>1466</td><td>翻訳ヘルパー</td></tr>
+<tr><td>2</td><td><code>applyLanguage()</code></td><td>1467</td><td>翻訳をDOMに適用</td></tr>
+<tr><td>3</td><td><code>setLanguage(lang)</code></td><td>1477</td><td>言語変更+保存</td></tr>
+<tr><td>4</td><td><code>midiToHz(midi)</code></td><td>1498</td><td>MIDI → Hz変換</td></tr>
+<tr><td>5</td><td><code>hzToMidi(hz)</code></td><td>1499</td><td>Hz → MIDI変換</td></tr>
+<tr><td>6</td><td><code>noteLabel(midi)</code></td><td>1502</td><td>MIDI → 音名文字列</td></tr>
+<tr><td>7</td><td><code>startMic()</code></td><td>1886</td><td>マイク初期化・開始</td></tr>
+<tr><td>8</td><td><code>stopAudio()</code></td><td>1933</td><td>マイク停止・リセット</td></tr>
+<tr><td>9</td><td><code>detectLoop()</code></td><td>1961</td><td>メインのピッチ検出ループ(50ms)</td></tr>
+<tr><td>10</td><td><code>calcRMS(buf)</code></td><td>2218</td><td>RMS(音量)計算</td></tr>
+<tr><td>11</td><td><code>autocorrelate(buf, sr)</code></td><td>2232</td><td>自己相関ピッチ検出</td></tr>
+<tr><td>12</td><td><code>hpsDetect(sr)</code></td><td>2321</td><td>HPSピッチ検出(フォールバック)</td></tr>
+<tr><td>13</td><td><code>finalizeNote()</code></td><td>2345</td><td>検出音の確定・記録</td></tr>
+<tr><td>14</td><td><code>drawTuner(cents, hz, id)</code></td><td>2397</td><td>チューナーメーター描画</td></tr>
+<tr><td>15</td><td><code>drawGraph()</code></td><td>2556</td><td>ピッチ履歴グラフ描画</td></tr>
+<tr><td>16</td><td><code>startRefTone(midi)</code></td><td>2570</td><td>フィードバック音開始</td></tr>
+<tr><td>17</td><td><code>renderReport()</code></td><td>2648</td><td>偏差レポート生成</td></tr>
+<tr><td>18</td><td><code>exportCSV()</code></td><td>2757</td><td>CSV出力</td></tr>
+<tr><td>19</td><td><code>startChordOsc()</code></td><td>2914</td><td>コード再生開始</td></tr>
+<tr><td>20</td><td><code>stopChordOsc()</code></td><td>2964</td><td>コード再生停止</td></tr>
+<tr><td>21</td><td><code>updateEnsChordDisplay()</code></td><td>2980</td><td>コード表示更新</td></tr>
+<tr><td>22</td><td><code>handleEnsDetection()</code></td><td>3029</td><td>ハーモニー音程判定</td></tr>
+<tr><td>23</td><td><code>drawEnsTuner()</code></td><td>3187</td><td>ハーモニーメーター描画</td></tr>
+<tr><td>24</td><td><code>detectOnsetMs()</code></td><td>3255</td><td>アタック onset検出</td></tr>
+<tr><td>25</td><td><code>drawAttackTimeDomain()</code></td><td>3328</td><td>時間波形描画</td></tr>
+<tr><td>26</td><td><code>drawAttackSpectrum()</code></td><td>3455</td><td>周波数スペクトル描画</td></tr>
+<tr><td>27</td><td><code>drawPhaseWheel()</code></td><td>3747</td><td>位相ホイール描画</td></tr>
+<tr><td>28</td><td><code>startRhythm()</code></td><td>4267</td><td>メトロノーム開始</td></tr>
+<tr><td>29</td><td><code>scheduleRhythm()</code></td><td>4293</td><td>ビートスケジュール</td></tr>
+<tr><td>30</td><td><code>scheduleClick()</code></td><td>4408</td><td>クリック音スケジュール</td></tr>
+<tr><td>31</td><td><code>drawRhythmHeatmap()</code></td><td>4485</td><td>タイミング精度ヒートマップ</td></tr>
+<tr><td>32</td><td><code>recStartPlayback()</code></td><td>IIFE内</td><td>録音再生開始(AudioBufferSource)</td></tr>
+<tr><td>33</td><td><code>recStopPlayback()</code></td><td>IIFE内</td><td>録音再生停止</td></tr>
+<tr><td>34</td><td><code>drawRecPitchGraphPlayback()</code></td><td>IIFE内</td><td>再生時音程グラフ</td></tr>
+<tr><td>35</td><td><code>drawWaveformWithPosition()</code></td><td>IIFE内</td><td>再生時波形描画</td></tr>
+<tr><td>36</td><td><code>drawSpectrumAt()</code></td><td>IIFE内</td><td>周波数スペクトル(レコーダー)</td></tr>
+</table>
+<p style="color:var(--text2);font-size:13px;">※ IIFE = Immediately Invoked Function Expression（即座実行関数式）。レコーダーは他と変数が衝突しないよう関数スコープで囲まれています。</p>
+
+<!-- ============================================================ -->
+<h1 id="vars">17. グローバル変数一覧（主要なもの）</h1>
+
+<h3>音声システム</h3>
+<table>
+<tr><th>変数名</th><th>型</th><th>説明</th></tr>
+<tr><td><code>audioCtx</code></td><td>AudioContext</td><td>全体の音声エンジン（closeしない）</td></tr>
+<tr><td><code>analyser</code></td><td>AnalyserNode</td><td>FFTデータ取得用</td></tr>
+<tr><td><code>sourceNode</code></td><td>MediaStreamSource</td><td>マイク入力ノード</td></tr>
+<tr><td><code>isStarted</code></td><td>boolean</td><td>マイクON/OFF</td></tr>
+<tr><td><code>masterVolume</code></td><td>number</td><td>マスター音量倍率 (0〜4.0)</td></tr>
+<tr><td><code>A4_HZ</code></td><td>number</td><td>A4基準周波数 (デフォルト442)</td></tr>
+</table>
+
+<h3>ピッチ検出</h3>
+<table>
+<tr><th>変数名</th><th>型</th><th>説明</th></tr>
+<tr><td><code>trackState</code></td><td>string</td><td>'silent'/'attack'/'stable'</td></tr>
+<tr><td><code>lastValidHz</code></td><td>number</td><td>最後に検出した周波数</td></tr>
+<tr><td><code>smoothedRms</code></td><td>number</td><td>EMAスムージング済みRMS</td></tr>
+<tr><td><code>currentMidi</code></td><td>number</td><td>現在のMIDIノート番号</td></tr>
+<tr><td><code>SILENCE_THRESH</code></td><td>number</td><td>無音判定閾値 (デフォルト0.3)</td></tr>
+</table>
+
+<h3>チューナー物理</h3>
+<table>
+<tr><th>変数名</th><th>型</th><th>説明</th></tr>
+<tr><td><code>NEEDLE_K</code></td><td>number</td><td>バネ定数 (16)</td></tr>
+<tr><td><code>NEEDLE_C</code></td><td>number</td><td>減衰係数 (7.5)</td></tr>
+<tr><td><code>mNeedle</code></td><td>object</td><td>{pos, vel, target} メーター状態</td></tr>
+<tr><td><code>ensNeedle</code></td><td>object</td><td>ハーモニー用メーター (K=10, C=6)</td></tr>
+</table>
+
+<h3>ハーモニー</h3>
+<table>
+<tr><th>変数名</th><th>型</th><th>説明</th></tr>
+<tr><td><code>ensRootMidi</code></td><td>number</td><td>根音のMIDI番号</td></tr>
+<tr><td><code>ensOctave</code></td><td>number</td><td>オクターブ (2〜6)</td></tr>
+<tr><td><code>ensChordType</code></td><td>string</td><td>'M','m','M7','7','m7','dim','sus4'</td></tr>
+<tr><td><code>ensTuning</code></td><td>string</td><td>'ji' (純正律) / 'et' (平均律)</td></tr>
+<tr><td><code>ensOscs</code></td><td>array</td><td>[{osc, g}, ...] オシレーター配列</td></tr>
+</table>
+
+<hr style="margin:40px 0;border-color:var(--border);">
+
+<p style="text-align:center;color:var(--text2);font-size:13px;">
+SoundCraft v3.3 コード解説書 | 生成日: 2026-04-02 | 総コード行数: 約6,375行
+</p>
+
+</body>
+</html>
