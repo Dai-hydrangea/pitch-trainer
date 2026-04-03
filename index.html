@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>SoundCraft v3.3</title>
+<title>SoundCraft v3.4</title>
 
 <!-- PWA -->
 <link rel="manifest" href="manifest.json">
@@ -202,7 +202,7 @@ tr:last-child td { border-bottom: none; }
 <body>
 
 <div id="header">
-  <h1>🎵 <span data-i18n="app_title">SoundCraft</span> <small style="font-size:0.45em;opacity:0.55;font-weight:400;">v3.3</small></h1>
+  <h1>🎵 <span data-i18n="app_title">SoundCraft</span> <small style="font-size:0.45em;opacity:0.55;font-weight:400;">v3.4</small></h1>
   <div id="a4-ctrl">
     A4 =
     <input type="range" id="a4-slider" min="415" max="446" value="442" step="1">
@@ -711,7 +711,7 @@ tr:last-child td { border-bottom: none; }
     <a href="https://apps.apple.com/app/soundcraft/id6761473626" target="_blank" rel="noopener" style="display:inline-block;">
       <img src="https://tools.applemediaservices.com/api/badges/download-on-the-app-store/black/en-us?size=250x83" alt="Download on the App Store" style="height:44px;">
     </a>
-    <p style="font-size:11px;color:var(--text2);margin-top:6px;">SoundCraft v3.3</p>
+    <p style="font-size:11px;color:var(--text2);margin-top:6px;">SoundCraft v3.4</p>
   </div>
 </div>
 
@@ -5764,7 +5764,7 @@ function drawRhythmHeatmap() {
     recPlaySource = audioCtx.createBufferSource();
     recPlayGain = audioCtx.createGain();
     recPlaySource.buffer = recDecodedBuf;
-    recPlayGain.gain.value = 1.0; // 録音レベルそのまま再生（他機能と音量差を作らない）
+    recPlayGain.gain.value = 3.0; // マイク入力は小さいのでブースト
     recPlaySource.connect(recPlayGain);
     recPlayGain.connect(audioCtx.destination);
     recPlayOffset = offset;
@@ -6012,7 +6012,7 @@ applyLanguage();
 // ============================================================
 // Service Worker 登録 + 強制キャッシュクリア
 // ============================================================
-const APP_VERSION = 'v35';
+const APP_VERSION = 'v36';
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', async () => {
     // 旧キャッシュが残っている場合は全削除してからSW登録
@@ -6057,26 +6057,18 @@ function resumeAudioCtx() {
     audioCtx.resume();
   }
 }
+
+// バックグラウンド復帰時 → マイクOFF（クリーンな状態に戻す）
+function resetAudioOnResume() {
+  if (isStarted) stopAudio();
+  resumeAudioCtx();
+}
+
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) {
-    resumeAudioCtx();
-    // マイクON状態でバックグラウンドから戻った時、ストリームが死んでいたら再接続
-    if (isStarted && sourceNode) {
-      try {
-        const stream = sourceNode.mediaStream;
-        const track = stream && stream.getAudioTracks()[0];
-        if (!track || track.readyState === 'ended') {
-          // ストリームが切れている → 再起動
-          stopAudio();
-          startMic().catch(() => {});
-        }
-      } catch(e) {
-        stopAudio();
-        startMic().catch(() => {});
-      }
-    }
-  }
+  if (!document.hidden) resetAudioOnResume();
 });
+document.addEventListener('resume', resetAudioOnResume);
+window.addEventListener('focus', resetAudioOnResume);
 document.addEventListener('touchstart', resumeAudioCtx, { passive: true });
 
 // ============================================================
