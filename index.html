@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>ToneMaster v3.3</title>
+<title>SoundCraft v3.3</title>
 
 <!-- PWA -->
 <link rel="manifest" href="manifest.json">
@@ -11,7 +11,7 @@
 <!-- iOS ホーム画面追加対応 -->
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="ToneMaster">
+<meta name="apple-mobile-web-app-title" content="SoundCraft">
 <link rel="apple-touch-icon" href="icon.svg">
 <style>
 :root {
@@ -202,7 +202,7 @@ tr:last-child td { border-bottom: none; }
 <body>
 
 <div id="header">
-  <h1>🎵 <span data-i18n="app_title">ToneMaster</span> <small style="font-size:0.45em;opacity:0.55;font-weight:400;">v3.3</small></h1>
+  <h1>🎵 <span data-i18n="app_title">SoundCraft</span> <small style="font-size:0.45em;opacity:0.55;font-weight:400;">v3.3</small></h1>
   <div id="a4-ctrl">
     A4 =
     <input type="range" id="a4-slider" min="415" max="446" value="442" step="1">
@@ -707,14 +707,20 @@ tr:last-child td { border-bottom: none; }
       <button class="btn btn-danger" id="reset-btn" data-i18n="reset">リセット</button>
     </div>
   </div>
+  <div class="card" style="text-align:center;">
+    <a href="https://apps.apple.com/app/soundcraft/id6761473626" target="_blank" rel="noopener" style="display:inline-block;">
+      <img src="https://tools.applemediaservices.com/api/badges/download-on-the-app-store/black/en-us?size=250x83" alt="Download on the App Store" style="height:44px;">
+    </a>
+    <p style="font-size:11px;color:var(--text2);margin-top:6px;">SoundCraft v3.3</p>
+  </div>
 </div>
 
 <script>
 const I18N = {
   "app_title": {
-    "ja": "ToneMaster",
-    "en": "ToneMaster",
-    "zh": "ToneMaster"
+    "ja": "SoundCraft",
+    "en": "SoundCraft",
+    "zh": "SoundCraft"
   },
   "tab_tuner": {
     "ja": "チューナー",
