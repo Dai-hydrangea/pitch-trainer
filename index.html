@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>SoundCraft v3.4</title>
+<title>SoundCraft v3.5</title>
 
 <!-- PWA -->
 <link rel="manifest" href="manifest.json">
@@ -202,7 +202,7 @@ tr:last-child td { border-bottom: none; }
 <body>
 
 <div id="header">
-  <h1>🎵 <span data-i18n="app_title">SoundCraft</span> <small style="font-size:0.45em;opacity:0.55;font-weight:400;">v3.4</small></h1>
+  <h1>🎵 <span data-i18n="app_title">SoundCraft</span> <small style="font-size:0.45em;opacity:0.55;font-weight:400;">v3.5</small></h1>
   <div id="a4-ctrl">
     A4 =
     <input type="range" id="a4-slider" min="415" max="446" value="442" step="1">
@@ -559,10 +559,7 @@ tr:last-child td { border-bottom: none; }
       <button class="btn" id="tap-tempo-btn" style="flex:3;padding:14px;font-size:14px;font-weight:600">🎤 Tap</button>
     </div>
   </div>
-  <div class="card">
-    <!-- 振り子メトロノーム -->
-    <canvas id="pendulum-canvas" style="width:100%;height:100px;display:block;"></canvas>
-    <!-- ●○ ビートカウント -->
+  <div class="card no-collapse">
     <div id="rhythm-beat-dots" style="display:flex;justify-content:center;gap:12px;font-size:28px;margin:8px 0;min-height:36px;letter-spacing:4px;">
       ○○○○
     </div>
@@ -711,7 +708,7 @@ tr:last-child td { border-bottom: none; }
     <a href="https://apps.apple.com/app/soundcraft/id6761473626" target="_blank" rel="noopener" style="display:inline-block;">
       <img src="https://tools.applemediaservices.com/api/badges/download-on-the-app-store/black/en-us?size=250x83" alt="Download on the App Store" style="height:44px;">
     </a>
-    <p style="font-size:11px;color:var(--text2);margin-top:6px;">SoundCraft v3.4</p>
+    <p style="font-size:11px;color:var(--text2);margin-top:6px;">SoundCraft v3.5</p>
   </div>
 </div>
 
@@ -1506,9 +1503,7 @@ function hzToMidi(hz) { return 69 + 12 * Math.log2(hz / A4_HZ); }
 function midiToCents(midiFloat, midiInt) { return (midiFloat - midiInt) * 100; }
 
 function noteLabel(midi) {
-  const oct = Math.floor(midi / 12) - 1;
-  const name = (useGerman ? GERMAN : ENGLISH)[midi % 12];
-  return name + oct;
+  return (useGerman ? GERMAN : ENGLISH)[midi % 12];
 }
 
 // 全ノートリスト
@@ -4277,12 +4272,15 @@ function startRhythm() {
   rhythmExpectedBeats = [];
   rhythmRawOffsets = [];
   rhythmLatencyMs = null;
-  rhythmNextBeatTime = audioCtx.currentTime + 0.1;
+  // 振り子とクリック音を同期させるため、ビート間隔の整数倍で開始
+  const beatSec = 60 / rhythmBpm;
+  const now = audioCtx.currentTime;
+  rhythmNextBeatTime = Math.ceil((now + 0.01) / beatSec) * beatSec;
   document.getElementById('rhythm-start-btn').style.display = 'none';
   document.getElementById('rhythm-stop-btn').style.display = '';
   document.getElementById('rhythm-latency-display').textContent = `遅延補正: 計測中… (最初の${RHYTHM_CALIB_N}音で自動計測)`;
   scheduleRhythm();
-  startPendulum();
+  // startPendulum(); // 振り子は廃止
 }
 
 function stopRhythm() {
@@ -4347,7 +4345,7 @@ function updateBeatDots(pos, active) {
   dots.textContent = s;
 }
 
-// 振り子アニメーション
+// 振り子アニメーション（クリック音と完全同期、頂上=ビート）
 function startPendulum() {
   const canvas = document.getElementById('pendulum-canvas');
   if (!canvas) return;
@@ -4362,16 +4360,26 @@ function startPendulum() {
     ctx.fillRect(0, 0, W, H);
     if (!rhythmActive || !audioCtx) { pendulumRAF = null; return; }
 
-    // 振り子の角度: BPMに合わせて往復（下が固定点、上で振る）
+    // 次のビート時刻までの残り時間から振り子の位相を逆算
+    // → クリック音のスケジュールと同じ rhythmNextBeatTime を直接参照
     const beatSec = 60 / rhythmBpm;
-    const t = audioCtx.currentTime;
-    const phase = (t / beatSec) * Math.PI;
-    const angle = Math.sin(phase) * 0.45; // ±0.45 rad (±26°)
+    const subInterval = beatSec / rhythmSubdiv;
+    const now = audioCtx.currentTime;
+    // 次のビートまでの残り時間（0〜subInterval）
+    const timeToNext = rhythmNextBeatTime - now;
+    // 0〜1の進行度（0=前のビート直後、1=次のビート直前）
+    const progress = 1 - Math.max(0, Math.min(1, timeToNext / subInterval));
+    // sin波: 0→1→0 で頂上が0（ビート時）、谷が0.5（ビート間）
+    const angle = Math.sin(progress * Math.PI) * 0.45;
+    // 左右交互に振る
+    const beatNum = rhythmBeatCount || 0;
+    const side = (beatNum % 2 === 0) ? 1 : -1;
+    const finalAngle = angle * side;
 
-    const cx = W / 2, cy = H - 8;  // 固定点は下
+    const cx = W / 2, cy = H - 8;
     const armLen = H - 22;
-    const bx = cx + Math.sin(angle) * armLen;
-    const by = cy - Math.cos(angle) * armLen; // 上に向かう
+    const bx = cx + Math.sin(finalAngle) * armLen;
+    const by = cy - Math.cos(finalAngle) * armLen;
 
     // 固定軸（下）
     ctx.fillStyle = '#8b949e';
@@ -4380,7 +4388,7 @@ function startPendulum() {
     ctx.strokeStyle = '#58a6ff88';
     ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(bx, by); ctx.stroke();
-    // 球（上で振れる）
+    // 球
     ctx.fillStyle = '#58a6ff';
     ctx.shadowBlur = 10; ctx.shadowColor = '#58a6ff';
     ctx.beginPath(); ctx.arc(bx, by, 10, 0, Math.PI * 2); ctx.fill();
@@ -4548,6 +4556,7 @@ function drawRhythmHeatmap() {
 (function initCollapsible() {
   // h2 または h3 を持つ .card を折りたたみ対応にする
   document.querySelectorAll('.card').forEach(card => {
+    if (card.classList.contains('no-collapse')) return;
     const heading = card.querySelector('h2, h3');
     if (!heading) return;
     // ヘッダー部分をラップ
@@ -6012,7 +6021,7 @@ applyLanguage();
 // ============================================================
 // Service Worker 登録 + 強制キャッシュクリア
 // ============================================================
-const APP_VERSION = 'v36';
+const APP_VERSION = 'v37';
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', async () => {
     // 旧キャッシュが残っている場合は全削除してからSW登録
@@ -6150,10 +6159,10 @@ document.addEventListener('touchstart', resumeAudioCtx, { passive: true });
           ja: '🎤 Tapを押してから手拍子を4回！テンポを自動検出してメトロノームが開始します。',
           en: 'Press 🎤 Tap, then clap 4 times! Auto-detects tempo and starts the metronome.',
           zh: '按🎤 Tap，然后拍手4次！自动检测速度并启动节拍器。' },
-        { target: '#pendulum-canvas', pos: 'bottom',
-          ja: '振り子が視覚的にビートを表示。●○でカウント位置もひと目でわかります。',
-          en: 'Pendulum shows the beat visually. ●○ dots indicate count position at a glance.',
-          zh: '钟摆视觉显示节拍。●○圆点一目了然地显示计数位置。' },
+        { target: '#rhythm-beat-dots', pos: 'bottom',
+          ja: '●○でビートカウント位置がひと目でわかります。',
+          en: '●○ dots indicate beat count position at a glance.',
+          zh: '●○圆点一目了然地显示节拍计数位置。' },
         { target: '#rhythm-heatmap', pos: 'top',
           ja: 'タイミング履歴：各拍のずれをドットで表示。緑=正確、黄=やや、赤=ずれ大。',
           en: 'Timing history: dots show deviation per beat. Green=accurate, yellow=close, red=off.',
